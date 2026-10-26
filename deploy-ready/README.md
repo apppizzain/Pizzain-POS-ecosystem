@@ -35,6 +35,10 @@ Keduanya sudah punya `index.html`, jadi bisa langsung dibuka dari root hosting.
 
 Upload isi folder `deploy-ready/` ke root repo, atau set **Root Directory** Vercel ke `deploy-ready`.
 
+Paket yang dirapikan pada 27 Oktober 2026 berisi 83 file, sehingga dapat diunggah sekaligus lewat browser GitHub. Jika repo sudah memakai folder `deploy-ready`, unggah folder ini di root repo agar menggantikan lokasi yang sama, bukan membuat `deploy-ready/deploy-ready`.
+
+Backup disimpan di `.backups/` pada folder sumber aplikasi, di luar paket ini. Jangan ikut mengunggah backup atau seluruh folder sumber aplikasi. Mengunggah ulang tidak menghapus file lama di GitHub yang sudah tidak ada secara lokal.
+
 Contoh URL:
 
 - `https://domain-kamu.com/pos/`
