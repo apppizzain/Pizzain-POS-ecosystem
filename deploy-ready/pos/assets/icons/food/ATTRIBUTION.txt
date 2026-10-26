@@ -1,0 +1,5 @@
+Food illustrations: Twemoji 15.1.0, Twitter, Inc. and contributors.
+Source: https://github.com/jdecked/twemoji/tree/v15.1.0/assets/72x72
+Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+Original artwork is unmodified. Local filenames describe their menu category.
+See LICENSE-GRAPHICS for license terms.
