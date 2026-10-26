@@ -1,0 +1,45 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/pos/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/duitku/callback",
+      "destination": "https://veifszvxdfkzpcxhbqlu.supabase.co/functions/v1/duitku-payment-webhook"
+    },
+    {
+      "source": "/pos",
+      "destination": "/pos/"
+    },
+    {
+      "source": "/self-order",
+      "destination": "/self-order/"
+    },
+    {
+      "source": "/self-order/:path*",
+      "destination": "/self-order/"
+    },
+    {
+      "source": "/delivery",
+      "destination": "/delivery/"
+    },
+    {
+      "source": "/delivery/:path*",
+      "destination": "/delivery/"
+    },
+    {
+      "source": "/driver",
+      "destination": "/driver/"
+    },
+    {
+      "source": "/driver/:path*",
+      "destination": "/driver/"
+    }
+  ]
+}

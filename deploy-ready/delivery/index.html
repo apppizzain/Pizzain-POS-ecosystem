@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store" />
+  
+  <title>Pizzain Delivery</title>
+  <link rel="stylesheet" href="styles/01-foundation-layout.css?v=sync-refresh1&pizzain=20261026" />
+  <link rel="stylesheet" href="styles/05-orders-modals.css?v=move-table-ux4&pizzain=20261026" />
+  <link rel="stylesheet" href="styles/08-orders-overrides.css?v=customer-legacy-empty1&pizzain=20261026" />
+  <link rel="stylesheet" href="styles/09-self-order.css?v=move-table-ux4&pizzain=20261026" />
+  <link rel="stylesheet" href="SO Takeaway/so-takeaway.css?v=11&pizzain=20261026" />
+  <link rel="stylesheet" href="Customer Order/customer-order.css?v=75&pizzain=20261026" />
+  <style>#app:empty::before{content:"Memuat Pizzain Delivery...";display:grid;min-height:100vh;place-items:center;font:600 16px system-ui;color:#334155;background:#f8fafc;}</style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    window.KASIRIN_APP_MODE = "self-order";
+    window.KASIRIN_DELIVERY_APP = true;
+    window.CUSTOMER_ORDER_PAYMENT_PROVIDER = window.CUSTOMER_ORDER_PAYMENT_PROVIDER || "duitku";
+    window.GEOAPIFY_API_KEY = window.GEOAPIFY_API_KEY || "";
+    window.GEOAPIFY_MAP_STYLE = window.GEOAPIFY_MAP_STYLE || "osm-bright";
+    window.CUSTOMER_ORDER_SUPPORT_EMAIL = window.CUSTOMER_ORDER_SUPPORT_EMAIL || "";
+    window.CUSTOMER_ORDER_SUPPORT_PHONE = window.CUSTOMER_ORDER_SUPPORT_PHONE || "";
+    window.CUSTOMER_ORDER_SUPPORT_ADDRESS = window.CUSTOMER_ORDER_SUPPORT_ADDRESS || "";
+    window.CUSTOMER_ORDER_SUPPORT_MAPS_URL = window.CUSTOMER_ORDER_SUPPORT_MAPS_URL || "";
+  </script>
+  <script src="app.js?v=staff-source1&pizzain=20261026"></script>
+  <script src="SO Takeaway/so-takeaway.js?v=11&pizzain=20261026"></script>
+  <script src="Customer Order/customer-order.js?v=76&pizzain=20261026"></script>
+</body>
+</html>
+
+
+
+
