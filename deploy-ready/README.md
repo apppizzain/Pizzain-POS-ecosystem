@@ -1,6 +1,8 @@
 # Deploy Ready
 
-Folder ini berisi paket siap upload/deploy yang dipisah menjadi dua aplikasi.
+Folder ini berisi paket siap deploy: POS, Self Order, delivery, driver, dan microsite tautan layanan.
+
+Untuk domain `pizzain.id`, gunakan **satu proyek Vercel `pizzain-pos`** dengan Root Directory `deploy-ready` (lihat Opsi 2). Domain tidak perlu dipindahkan ke proyek `pizzain-order`.
 
 ## Struktur
 
@@ -9,6 +11,12 @@ Folder ini berisi paket siap upload/deploy yang dipisah menjadi dua aplikasi.
 
 - `self-order/`
   Aplikasi customer self order. Paket ini lebih ringan karena tidak membawa file halaman POS/admin.
+
+- `delivery/` dan `driver/`
+  Aplikasi pemesanan delivery dan driver.
+
+- `order/`
+  Microsite "Pilih Layanan" dengan tautan menu dan WhatsApp, tersedia di `https://pizzain.id/order/` setelah paket ini dideploy ulang. Halaman utama `/` tetap mengarah ke `/pos/`.
 
 ## Cara Deploy
 
@@ -23,7 +31,7 @@ Upload isi folder berikut ke repo yang berbeda:
 
 Keduanya sudah punya `index.html`, jadi bisa langsung dibuka dari root hosting.
 
-### Opsi 2: Satu Repo, Dua Subfolder
+### Opsi 2: Satu Repo, Satu Domain (Untuk Pizzain)
 
 Upload isi folder `deploy-ready/` ke root repo, atau set **Root Directory** Vercel ke `deploy-ready`.
 
@@ -31,6 +39,9 @@ Contoh URL:
 
 - `https://domain-kamu.com/pos/`
 - `https://domain-kamu.com/self-order/?1`
+- `https://domain-kamu.com/delivery/`
+- `https://domain-kamu.com/driver/`
+- `https://domain-kamu.com/order/`
 
 ## URL QR Meja
 
