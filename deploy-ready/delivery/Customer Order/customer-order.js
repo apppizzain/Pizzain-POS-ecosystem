@@ -1297,6 +1297,7 @@
     homeResetCheckoutValidation();
     selfOrderSubmitError = "";
     selfOrderSubmitting = true;
+    selfOrderSubmitStartedAt = Date.now();
     try {
       render();
       await new Promise(resolve => window.setTimeout(resolve, 0));
@@ -1378,7 +1379,7 @@
       order.limitedStockCommitToken = stockCommit.token || "";
       state.orders.unshift(order);
       saveState();
-      const synced = await syncOrderToSupabase(order, { silent: true });
+      const synced = await submitSelfOrderConfirmed(order);
       if (!synced) {
         if (stockCommit.token) await restoreLimitedStockCommit(order.number);
         state.orders = state.orders.filter(item => item.id !== order.id);
@@ -1410,6 +1411,7 @@
       selfOrderSubmitError = error?.userMessage || "Gagal membuat pesanan, cek koneksi lalu coba lagi.";
     } finally {
       selfOrderSubmitting = false;
+      selfOrderSubmitStartedAt = 0;
       if (!renderedCompletion) render();
     }
   }

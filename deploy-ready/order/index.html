@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pizza!n - Pilih Layanan</title>
+    <meta
+      name="description"
+      content="Microsite Pizza!n untuk menu, WhatsApp delivery, takeaway, kritik, dan saran."
+    />
+    <link rel="preload" href="assets/background.jpeg" as="image" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="site-shell" aria-label="Pizza!n pilih layanan">
+      <section class="poster" aria-label="Pilih salah satu layanan Pizza!n">
+        <img class="poster-bg" src="assets/background.jpeg" alt="" />
+
+        <nav class="service-list" aria-label="Daftar layanan">
+          <a class="service-button" data-link-key="menu" href="#" aria-label="Buka menu Pizza!n">
+            <img src="assets/button-menu.png" alt="" />
+            <span>Menu</span>
+          </a>
+
+          <a
+            class="service-button"
+            data-link-key="delivery"
+            href="#"
+            aria-label="Pesan lewat WhatsApp Delivery"
+          >
+            <img src="assets/button-delivery.png" alt="" />
+            <span>WhatsApp Delivery</span>
+          </a>
+
+          <a
+            class="service-button"
+            data-link-key="takeaway"
+            href="#"
+            aria-label="Pesan lewat WhatsApp Takeaway"
+          >
+            <img src="assets/button-takeaway.png" alt="" />
+            <span>WhatsApp Takeaway</span>
+          </a>
+
+          <a
+            class="service-button"
+            data-link-key="feedback"
+            href="#"
+            aria-label="Kirim kritik dan saran lewat WhatsApp"
+          >
+            <img src="assets/button-feedback.png" alt="" />
+            <span>WhatsApp Kritik dan Saran</span>
+          </a>
+        </nav>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
