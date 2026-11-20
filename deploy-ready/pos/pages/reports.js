@@ -588,6 +588,7 @@ async function openReportVisitorReceipt(eventOrRecordKey, maybeRecordKey) {
   const nextKey = reportReceiptSiblingKey(currentKey, 1);
   const cashReceiptAmount = orderCashAmount(order);
   const qrisReceiptAmount = orderQrisAmount(order);
+  const tearPath = "M0 12" + Array.from({ length: 20 }, (_, index) => `L${index * 18 + 9} 2L${(index + 1) * 18} 12`).join("") + "Z";
   const itemRows = items.map(item => {
     const modifiers = typeof orderItemModifiers === "function" ? orderItemModifiers(item) : [];
     return `
@@ -607,6 +608,7 @@ async function openReportVisitorReceipt(eventOrRecordKey, maybeRecordKey) {
         ${reportReceiptMenu(order)}
       </div>
       <div class="visitor-receipt-paper">
+        <svg class="visitor-receipt-tear is-top" viewBox="0 0 360 12" preserveAspectRatio="none" aria-hidden="true"><path d="${tearPath}"/></svg>
         <div class="visitor-receipt-head">
           ${reportReceiptLogoMarkup()}
           <strong>${escapeHtml(state.settings.receiptStoreName || "Kasirin!")}</strong>
@@ -628,10 +630,11 @@ async function openReportVisitorReceipt(eventOrRecordKey, maybeRecordKey) {
         <div class="visitor-receipt-total">
           <span>Subtotal</span><b>${money(order.subtotal)}</b>
           <span>Diskon</span><b>${money(order.discount)}</b>
-          <span>Total</span><b>${money(order.total)}</b>
+          <span class="visitor-receipt-grand-label">Total</span><b class="visitor-receipt-grand-total">${money(order.total)}</b>
           ${cashReceiptAmount ? `<span>Cash</span><b>${money(cashReceiptAmount)}</b>` : ""}
           ${qrisReceiptAmount ? `<span>QRIS</span><b>${money(qrisReceiptAmount)}</b>` : ""}
         </div>
+        <svg class="visitor-receipt-tear is-bottom" viewBox="0 0 360 12" preserveAspectRatio="none" aria-hidden="true"><path d="${tearPath}"/></svg>
       </div>
     </div>
   `, { skipHistory: true });
@@ -653,7 +656,7 @@ function reportReceiptMenu(order) {
     <div class="visitor-receipt-menu" data-report-receipt-menu>
       <button class="visitor-receipt-menu-toggle" type="button" onclick="toggleReportReceiptMenu(event)" aria-label="Menu struk" aria-expanded="false">&vellip;</button>
       <div class="visitor-receipt-menu-panel" hidden>
-        <button type="button" onclick='reportReceiptMenuAction(event, "delete", ${JSON.stringify(recordKey)})'>Hapus struk</button>
+        <button type="button" onclick='reportReceiptMenuAction(event, "delete", ${JSON.stringify(recordKey)})'>Hapus Transaksi</button>
         <button type="button" onclick='reportReceiptMenuAction(event, "print", ${JSON.stringify(recordKey)})'>Cetak struk</button>
         <button type="button" onclick='reportReceiptMenuAction(event, "download", ${JSON.stringify(recordKey)})'>Unduh gambar</button>
       </div>
@@ -1001,13 +1004,13 @@ function renderProfitAreaChart(rows, title) {
         <svg viewBox="0 0 100 72" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient id="${gradientId}" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stop-color="#0f9b75" stop-opacity=".58"></stop>
-              <stop offset="78%" stop-color="#0f9b75" stop-opacity=".08"></stop>
-              <stop offset="100%" stop-color="#0f9b75" stop-opacity="0"></stop>
+              <stop offset="0%" style="stop-color:var(--pos-accent, #0f9b75)" stop-opacity=".58"></stop>
+              <stop offset="78%" style="stop-color:var(--pos-accent, #0f9b75)" stop-opacity=".08"></stop>
+              <stop offset="100%" style="stop-color:var(--pos-accent, #0f9b75)" stop-opacity="0"></stop>
             </linearGradient>
           </defs>
           <path d="${areaPath}" fill="url(#${gradientId})"></path>
-          <path d="${linePath}" fill="none" stroke="#0f7a5c" stroke-width="${compact ? "1.05" : "1.28"}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+          <path d="${linePath}" fill="none" style="stroke:var(--pos-accent-dark, #0f7a5c)" stroke-width="${compact ? "1.05" : "1.28"}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
           <line x1="${chartLeft}" y1="${chartBottom}" x2="${chartRight}" y2="${chartBottom}" stroke="#d8e3df" stroke-width=".6" vector-effect="non-scaling-stroke"></line>
         </svg>
         <div class="profit-point-dots">
@@ -1110,7 +1113,7 @@ function mergeProfitSummaryRows(level, cachedRows = [], fallbackRows = []) {
 
 function profitRows(level, year = null, month = null, preferFallback = false) {
   const fallbackRows = fallbackProfitSummaryRows(level, year, month);
-  if (preferFallback) return fallbackRows;
+  if (preferFallback || reportRecordsCoverRange(legacyProfitSummaryRange(level, year, month))) return fallbackRows;
   let cachedRows = profitSummaryCache.years;
   if (level === "months") cachedRows = profitSummaryCache.months[year] || [];
   if (level === "days") cachedRows = profitSummaryCache.days[`${year}-${month}`] || [];

@@ -1,4 +1,4 @@
-﻿.visitor-receipt-item small,
+.visitor-receipt-item small,
 .visitor-receipt-empty {
   color: var(--muted);
   font-size: 12px;
@@ -16,9 +16,9 @@
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border: 1px solid #d7e7df;
+  border: 1px solid var(--pos-card-border, #d7e7df);
   border-radius: 14px;
-  background: #f8fffb;
+  background: var(--pos-card-surface, #f8fffb);
 }
 
 .range-calendar-nav strong {
@@ -57,20 +57,20 @@
 
 .range-calendar-grid button.muted {
   color: #a9b8b1;
-  background: #f7faf9;
+  background: var(--pos-card-surface, #f7faf9);
 }
 
 .range-calendar-grid button.in-range {
   border-radius: 8px;
-  background: #dcf9ed;
-  color: #0f513f;
+  background: var(--pos-card-tint, #dcf9ed);
+  color: var(--pos-accent-deep, #0f513f);
 }
 
 .range-calendar-grid button.selected {
   color: #ffffff;
-  background: #0f7a5c;
-  border-color: #0f7a5c;
-  box-shadow: 0 8px 18px rgba(15, 122, 92, .2);
+  background: var(--pos-accent-dark, #0f7a5c);
+  border-color: var(--pos-accent-dark, #0f7a5c);
+  box-shadow: 0 8px 18px rgb(var(--pos-shadow-rgb, 15 122 92) / .2);
 }
 
 .range-calendar-actions {
@@ -94,13 +94,13 @@
   align-items: center;
   gap: 9px;
   padding: 0 12px;
-  border: 1px solid #d7e7df;
+  border: 1px solid var(--pos-card-border, #d7e7df);
   border-radius: 12px;
-  background: #f5faf8;
+  background: var(--pos-card-surface, #f5faf8);
 }
 
 .product-sales-search span {
-  color: #0f7a5c;
+  color: var(--pos-accent-dark, #0f7a5c);
   font-size: 21px;
   font-weight: 760;
   line-height: 1;
@@ -129,8 +129,8 @@
   color: white;
   background:
     radial-gradient(circle at 88% 82%, rgba(255,255,255,.12), transparent 30%),
-    linear-gradient(135deg, #0ba878 0%, #06775d 100%);
-  box-shadow: 0 14px 28px rgba(6, 119, 93, .18);
+    linear-gradient(135deg, var(--pos-accent-dark, #0ba878) 0%, var(--pos-accent-deep, #06775d) 100%);
+  box-shadow: 0 14px 28px rgb(var(--pos-shadow-rgb, 6 119 93) / .18);
 }
 
 .product-sales-summary::after {
@@ -185,8 +185,8 @@
 .product-sales-notice {
   padding: 8px 10px;
   border-radius: 11px;
-  background: #eef6f4;
-  color: #0f513f;
+  background: var(--pos-card-tint, #eef6f4);
+  color: var(--pos-accent-deep, #0f513f);
   font-size: 12px;
   font-weight: 650;
   line-height: 1.35;
@@ -209,7 +209,7 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   background:
-    radial-gradient(circle at 96% 16%, rgba(79, 176, 138, .10), transparent 30%),
+    radial-gradient(circle at 96% 16%, rgb(var(--pos-accent-rgb, 79 176 138) / .10), transparent 30%),
     rgba(255,255,255,.88);
 }
 
@@ -219,7 +219,7 @@
 }
 
 .product-sales-row:nth-child(even) {
-  background: rgba(79, 176, 138, .08);
+  background: rgb(var(--pos-accent-rgb, 79 176 138) / .08);
 }
 
 .product-sales-row:last-child {
@@ -232,7 +232,7 @@
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: #f0f4f3;
+  background: var(--pos-card-tint, #f0f4f3);
   color: #b7c2bf;
   font-size: 15px;
   font-weight: 720;
@@ -356,9 +356,9 @@
 
 .report-chart-card {
   margin-bottom: 16px;
-  border-color: rgba(15, 81, 63, .12);
-  background: linear-gradient(180deg, #ffffff, #f8fffb);
-  box-shadow: 0 14px 32px rgba(15, 81, 63, .07);
+  border-color: rgb(var(--pos-shadow-rgb, 15 81 63) / .12);
+  background: linear-gradient(180deg, #ffffff, var(--pos-card-surface, #f8fffb));
+  box-shadow: 0 14px 32px rgb(var(--pos-shadow-rgb, 15 81 63) / .07);
 }
 
 .report-chart-tabs {
@@ -408,7 +408,7 @@
 .chart-bar {
   width: 100%;
   max-width: 50px;
-  background: linear-gradient(to top, #0f7a5c, #4ade80);
+  background: linear-gradient(to top, var(--pos-accent-dark, #0f7a5c), var(--pos-accent-soft, #4ade80));
   border-radius: 6px 6px 0 0;
   min-height: 8px;
   transition: height 0.4s ease;
@@ -436,7 +436,7 @@
   gap: 8px;
   align-items: end;
   padding: 14px 8px 0;
-  border-bottom: 1px solid #d7e7df;
+  border-bottom: 1px solid var(--pos-card-border, #d7e7df);
   overflow-x: auto;
 }
 
@@ -447,13 +447,13 @@
   justify-items: center;
   position: relative;
   border-radius: 999px 999px 0 0;
-  background: linear-gradient(180deg, #0f7a5c, #8ee0bd);
+  background: linear-gradient(180deg, var(--pos-accent-dark, #0f7a5c), var(--pos-card-border-strong, #8ee0bd));
 }
 
 .report-line-chart b {
   position: absolute;
   top: -22px;
-  color: #0f513f;
+  color: var(--pos-accent-deep, #0f513f);
   font-size: 12px;
 }
 
@@ -467,13 +467,13 @@
 
 .report-kpi-grid .metric {
   min-height: 116px;
-  border-color: rgba(15, 81, 63, .12);
-  background: linear-gradient(135deg, #ffffff, #f2fff8);
-  box-shadow: 0 14px 32px rgba(15, 81, 63, .07);
+  border-color: rgb(var(--pos-shadow-rgb, 15 81 63) / .12);
+  background: linear-gradient(135deg, #ffffff, var(--pos-card-surface, #f2fff8));
+  box-shadow: 0 14px 32px rgb(var(--pos-shadow-rgb, 15 81 63) / .07);
 }
 
 .report-kpi-grid .metric:nth-child(3) {
-  background: linear-gradient(135deg, #0f513f, #2f9b76);
+  background: linear-gradient(135deg, var(--pos-accent-deep, #0f513f), var(--pos-accent, #2f9b76));
   border-color: transparent;
   color: white;
 }
@@ -504,8 +504,8 @@
 }
 
 .report-card {
-  border-color: rgba(15, 81, 63, .12);
-  box-shadow: 0 14px 32px rgba(15, 81, 63, .07);
+  border-color: rgb(var(--pos-shadow-rgb, 15 81 63) / .12);
+  box-shadow: 0 14px 32px rgb(var(--pos-shadow-rgb, 15 81 63) / .07);
 }
 
 .report-breakdown,
@@ -526,9 +526,9 @@
   align-items: center;
   min-height: 54px;
   padding: 10px 12px;
-  border: 1px solid #d7e7df;
+  border: 1px solid var(--pos-card-border, #d7e7df);
   border-radius: 14px;
-  background: #f8fffb;
+  background: var(--pos-card-surface, #f8fffb);
 }
 
 .report-breakdown span,
@@ -568,7 +568,7 @@
   place-items: center;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: #0f513f;
+  background: var(--pos-accent-deep, #0f513f);
   color: white;
 }
 
@@ -638,14 +638,14 @@
 }
 
 .btn.accent {
-  background: #4fb08a;
-  border-color: #4fb08a;
+  background: var(--pos-accent, #4fb08a);
+  border-color: var(--pos-accent, #4fb08a);
   color: white;
 }
 
 .btn.green {
-  background: var(--green);
-  border-color: var(--green);
+  background: var(--pos-accent, var(--green));
+  border-color: var(--pos-accent, var(--green));
   color: white;
 }
 
@@ -730,7 +730,7 @@ textarea {
 
 .pos-search .input {
   min-height: 42px;
-  border-color: #72b69e;
+  border-color: var(--pos-accent-soft, #72b69e);
   border-radius: 999px;
   font-size: 15px;
   padding: 8px 15px;
@@ -741,8 +741,8 @@ textarea {
   width: 42px;
   border-radius: 999px;
   background: white;
-  border: 1px solid #72b69e;
-  color: var(--green);
+  border: 1px solid var(--pos-accent-soft, #72b69e);
+  color: var(--pos-accent, var(--green));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -772,8 +772,8 @@ textarea {
 }
 
 .cash-chip.open {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--pos-card-tint, var(--green-soft));
+  color: var(--pos-accent, var(--green));
 }
 
 .cash-chip.closed {
@@ -793,9 +793,9 @@ textarea {
   min-width: 112px;
   min-height: 44px;
   border-radius: 10px;
-  border: 1.5px solid #72b69e;
+  border: 1.5px solid var(--pos-accent-soft, #72b69e);
   background: white;
-  color: #3b9a79;
+  color: var(--pos-accent, #3b9a79);
   padding: 6px 12px;
   text-align: center;
   flex: 0 0 auto;
@@ -818,9 +818,9 @@ textarea {
 }
 
 .category-card.active {
-  background: #dcfce7;
-  border-color: var(--green);
-  color: var(--green);
+  background: var(--pos-card-tint, #dcfce7);
+  border-color: var(--pos-accent, var(--green));
+  color: var(--pos-accent, var(--green));
 }
 
 .product-list {
@@ -839,9 +839,9 @@ textarea {
   margin: 8px;
   padding: 14px;
   border-radius: 14px;
-  border: 1px solid #9bd4bf;
-  background: #ecfdf5;
-  color: #0f513f;
+  border: 1px solid var(--pos-card-border-strong, #9bd4bf);
+  background: var(--pos-card-tint, #ecfdf5);
+  color: var(--pos-accent-deep, #0f513f);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 12px;
@@ -853,7 +853,7 @@ textarea {
 }
 
 .sale-lock-card span {
-  color: #47685c;
+  color: var(--pos-accent-dark, #47685c);
   font-size: 13px;
 }
 
@@ -879,7 +879,7 @@ textarea {
 }
 
 .product-card:hover {
-  background: #f8fffb;
+  background: var(--pos-card-surface, #f8fffb);
 }
 
 .product-card h4 {
@@ -906,9 +906,9 @@ textarea {
   min-height: 24px;
   padding: 2px 9px;
   border-radius: 999px;
-  background: #ecfdf5;
-  border: 1px solid #c8ebde;
-  color: #08745a !important;
+  background: var(--pos-card-tint, #ecfdf5);
+  border: 1px solid var(--pos-card-border, #c8ebde);
+  color: var(--pos-accent-deep, #08745a) !important;
   font-weight: 900;
   font-size: 13px;
   line-height: 1;
@@ -960,7 +960,7 @@ textarea {
 }
 
 .product-action span.selected {
-  background: #4fb08a;
+  background: var(--pos-accent, #4fb08a);
   color: white;
 }
 
@@ -1005,8 +1005,8 @@ textarea {
   max-height: none;
   overflow: hidden;
   padding: 12px;
-  border-color: #5ac096;
-  background: #d8f8e9;
+  border-color: var(--pos-accent-soft, #5ac096);
+  background: var(--pos-card-tint, #d8f8e9);
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -1018,7 +1018,7 @@ textarea {
   min-height: 42px;
   margin-bottom: 8px;
   background: transparent;
-  color: #3b9a79;
+  color: var(--pos-accent, #3b9a79);
   font-size: 16px;
   font-weight: 800;
 }
@@ -1058,14 +1058,14 @@ textarea {
 }
 
 .order-type-card.active {
-  border-color: var(--green);
-  background: var(--green-soft);
-  color: var(--green);
+  border-color: var(--pos-accent, var(--green));
+  background: var(--pos-card-tint, var(--green-soft));
+  color: var(--pos-accent, var(--green));
 }
 
 .order-type-card.active span {
   background: white;
-  color: var(--green);
+  color: var(--pos-accent, var(--green));
 }
 
 .payment-detail-shell {
@@ -1081,7 +1081,7 @@ textarea {
   padding: 8px;
   border-radius: 16px;
   background: rgba(255,255,255,.72);
-  border: 1px solid #b7e4d4;
+  border: 1px solid var(--pos-card-border-strong, #b7e4d4);
 }
 
 .payment-detail-fields .field {
@@ -1109,8 +1109,8 @@ textarea {
   gap: 3px;
   padding: 3px;
   border-radius: 10px;
-  background: #e8f8f1;
-  border: 1px solid #b7e4d4;
+  background: var(--pos-card-tint, #e8f8f1);
+  border: 1px solid var(--pos-card-border-strong, #b7e4d4);
 }
 
 .discount-type-tabs button {
@@ -1118,13 +1118,13 @@ textarea {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #0f7a5c;
+  color: var(--pos-accent-dark, #0f7a5c);
   font-size: 11px;
   font-weight: 900;
 }
 
 .discount-type-tabs button.active {
-  background: #0f7a5c;
+  background: var(--pos-accent-dark, #0f7a5c);
   color: white;
 }
 
@@ -1145,16 +1145,16 @@ textarea {
   min-height: 30px;
   border-radius: 999px;
   background: rgba(255,255,255,.66);
-  border: 1px solid #9bd4bf;
-  color: #0f7a5c;
+  border: 1px solid var(--pos-card-border-strong, #9bd4bf);
+  color: var(--pos-accent-dark, #0f7a5c);
   padding: 0 12px;
   font-size: 13px;
   font-weight: 900;
 }
 
 .cart-step-tabs button.active {
-  background: #2f9b76;
-  border-color: #2f9b76;
+  background: var(--pos-accent, #2f9b76);
+  border-color: var(--pos-accent, #2f9b76);
   color: white;
 }
 
@@ -1209,7 +1209,7 @@ textarea {
   min-height: 36px;
   padding: 0 12px;
   border-radius: 999px;
-  background: #0f7a5c;
+  background: var(--pos-accent-dark, #0f7a5c);
   color: white;
   font-size: 24px;
   line-height: 1;
@@ -1218,7 +1218,7 @@ textarea {
 
 .cart-title-mini span {
   display: none;
-  color: #47685c;
+  color: var(--pos-accent-dark, #47685c);
   font-size: 13px;
 }
 
@@ -1233,8 +1233,8 @@ textarea {
   width: 100%;
   min-height: 48px;
   border-radius: 999px;
-  background: #2f9b76;
-  border-color: #2f9b76;
+  background: var(--pos-accent, #2f9b76);
+  border-color: var(--pos-accent, #2f9b76);
   color: white;
   font-weight: 900;
 }
@@ -1249,16 +1249,16 @@ textarea {
   min-height: 26px;
   border-radius: 999px;
   background: rgba(255,255,255,.75);
-  border: 1px solid #9bd4bf;
-  color: #0f7a5c;
+  border: 1px solid var(--pos-card-border-strong, #9bd4bf);
+  color: var(--pos-accent-dark, #0f7a5c);
   padding: 0 8px;
   font-size: 11px;
   font-weight: 800;
 }
 
 .addon-actions button.active {
-  background: #0f7a5c;
-  border-color: #0f7a5c;
+  background: var(--pos-accent-dark, #0f7a5c);
+  border-color: var(--pos-accent-dark, #0f7a5c);
   color: white;
 }
 
@@ -1287,10 +1287,10 @@ textarea {
   min-height: 64px;
   display: flex;
   align-items: center;
-  border: 1px solid #b7e4d4;
+  border: 1px solid var(--pos-card-border-strong, #b7e4d4);
   border-radius: 14px;
   padding: 10px;
-  background: #f7fffb;
+  background: var(--pos-card-surface, #f7fffb);
   cursor: pointer;
 }
 
@@ -1298,15 +1298,15 @@ textarea {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #d5e7df;
+  border: 1px solid var(--pos-card-border, #d5e7df);
   border-radius: 14px;
-  background: #fbfefd;
+  background: var(--pos-card-surface, #fbfefd);
 }
 
 .variant-parent-title {
   display: grid;
   gap: 2px;
-  color: #0f513f;
+  color: var(--pos-accent-deep, #0f513f);
   font-size: 13px;
 }
 
@@ -1342,7 +1342,7 @@ textarea {
   width: 16px;
   height: 16px;
   margin-right: 8px;
-  accent-color: #0f7a5c;
+  accent-color: var(--pos-accent-dark, #0f7a5c);
 }
 
 .variant-choice-card span {
@@ -1351,13 +1351,13 @@ textarea {
 }
 
 .variant-choice-card strong {
-  color: #073b30;
+  color: var(--pos-accent-ink, #073b30);
   font-size: 14px;
   font-weight: 700;
 }
 
 .variant-choice-card small {
-  color: #0f7a5c;
+  color: var(--pos-accent-dark, #0f7a5c);
   font-size: 13px;
   font-weight: 850;
   display: flex;
@@ -1373,12 +1373,37 @@ textarea {
 }
 
 .variant-choice-card:has(input:checked) {
-  border-color: #0f7a5c;
-  background: #dcfce7;
-  box-shadow: 0 12px 28px rgba(15, 122, 92, .12);
+  border-color: var(--pos-accent-dark, #0f7a5c);
+  background: var(--pos-card-tint, #dcfce7);
+  box-shadow: 0 12px 28px rgb(var(--pos-shadow-rgb, 15 122 92) / .12);
 }
 
 .variant-picker-submit {
   width: 100%;
   min-height: 44px;
+}
+
+.cart-addon-group {
+  padding-top: 8px;
+  border-top: 1px solid var(--pos-card-border-strong, #e4c5cd);
+}
+
+.cart-addon-group .addon-actions button {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--pos-card-surface, #fff);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cart-addon-group .addon-actions button small {
+  font-size: inherit;
+  font-weight: 600;
+  white-space: nowrap;
 }

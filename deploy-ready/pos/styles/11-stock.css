@@ -40,7 +40,7 @@
 .view-stock:not(.view-stock-opname) .stock-summary-card,
 .view-stock:not(.view-stock-opname) .stock-toolbar-card,
 .view-stock:not(.view-stock-opname) .stock-list-card {
-  border: 1px solid rgba(15, 139, 111, 0.22) !important;
+  border: 1px solid rgb(var(--pos-shadow-rgb, 15 139 111) / 0.22) !important;
   border-radius: 14px !important;
   background: rgba(255, 255, 255, 0.94) !important;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
@@ -79,19 +79,19 @@
 }
 
 .view-stock:not(.view-stock-opname) .stock-summary-card.primary {
-  background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
+  background: linear-gradient(135deg, var(--pos-card-tint, #ecfdf5), var(--pos-card-tint, #d1fae5)) !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-summary-card.primary span,
 .view-stock:not(.view-stock-opname) .stock-summary-card.primary small,
 .view-stock:not(.view-stock-opname) .stock-summary-card.primary strong {
-  color: #0f8b6f !important;
+  color: var(--pos-accent-dark, #0f8b6f) !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-summary-card.primary.active {
-  background: #0f8b6f !important;
-  border-color: #0b765e !important;
-  box-shadow: 0 14px 28px rgba(15, 139, 111, 0.28) !important;
+  background: var(--pos-accent-dark, #0f8b6f) !important;
+  border-color: var(--pos-accent-deep, #0b765e) !important;
+  box-shadow: 0 14px 28px rgb(var(--pos-shadow-rgb, 15 139 111) / 0.28) !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-summary-card.active span,
@@ -142,8 +142,8 @@
 .view-stock:not(.view-stock-opname) .stock-category-field {
   min-height: 38px !important;
   border-radius: 12px !important;
-  border: 1px solid rgba(16, 185, 129, 0.35) !important;
-  background: rgba(248, 255, 252, 0.92) !important;
+  border: 1px solid rgb(var(--pos-shadow-rgb, 16 185 129) / 0.35) !important;
+  background: rgb(var(--pos-card-surface-rgb, 248 255 252) / 0.92) !important;
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
@@ -154,7 +154,7 @@
   display: block !important;
   width: 17px !important;
   height: 17px !important;
-  color: var(--green) !important;
+  color: var(--pos-accent, var(--green)) !important;
   flex: 0 0 auto !important;
   fill: none !important;
   stroke: currentColor !important;
@@ -199,19 +199,19 @@
 .view-stock:not(.view-stock-opname) .stock-filter-chips button {
   min-height: 30px !important;
   padding: 0 11px !important;
-  border: 1px solid rgba(16, 185, 129, 0.36) !important;
+  border: 1px solid rgb(var(--pos-shadow-rgb, 16 185 129) / 0.36) !important;
   border-radius: 999px !important;
   background: #fff !important;
-  color: var(--green-dark) !important;
+  color: var(--pos-accent-dark, var(--green-dark)) !important;
   font-size: 12px !important;
   font-weight: 800 !important;
   white-space: nowrap !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-filter-chips button.active {
-  background: var(--green) !important;
+  background: var(--pos-accent, var(--green)) !important;
   color: #fff !important;
-  box-shadow: 0 10px 20px rgba(15, 139, 111, 0.18) !important;
+  box-shadow: 0 10px 20px rgb(var(--pos-shadow-rgb, 15 139 111) / 0.18) !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-list-card {
@@ -273,8 +273,8 @@
   flex: 0 0 auto !important;
   display: grid !important;
   place-items: center !important;
-  background: var(--green-soft) !important;
-  color: var(--green-dark) !important;
+  background: var(--pos-card-tint, var(--green-soft)) !important;
+  color: var(--pos-accent-dark, var(--green-dark)) !important;
   font-size: 13px !important;
   font-weight: 900 !important;
   overflow: hidden !important;
@@ -337,8 +337,8 @@
 .view-stock:not(.view-stock-opname) .stock-product-meta span {
   padding: 3px 7px !important;
   border-radius: 999px !important;
-  background: rgba(236, 253, 245, 0.9) !important;
-  color: var(--green-dark) !important;
+  background: rgb(var(--pos-card-tint-rgb, 236 253 245) / 0.9) !important;
+  color: var(--pos-accent-dark, var(--green-dark)) !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-product-actions {
@@ -354,8 +354,8 @@
 }
 
 .view-stock:not(.view-stock-opname) .stock-status-btn.available.active {
-  background: var(--green) !important;
-  border-color: var(--green) !important;
+  background: var(--pos-accent, var(--green)) !important;
+  border-color: var(--pos-accent, var(--green)) !important;
   color: #fff !important;
 }
 
@@ -525,8 +525,8 @@
 }
 
 .view-stock-opname .stock-status-btn.available.active {
-  background: var(--green) !important;
-  border-color: var(--green) !important;
+  background: var(--pos-accent, var(--green)) !important;
+  border-color: var(--pos-accent, var(--green)) !important;
   color: #fff !important;
 }
 
@@ -552,10 +552,10 @@
   width: auto !important;
   min-height: 30px !important;
   padding: 0 13px !important;
-  border: 1px solid rgba(16, 185, 129, 0.36) !important;
+  border: 1px solid rgb(var(--pos-shadow-rgb, 16 185 129) / 0.36) !important;
   border-radius: 999px !important;
   background: #fff !important;
-  color: var(--green-dark) !important;
+  color: var(--pos-accent-dark, var(--green-dark)) !important;
   font-size: 12px !important;
   font-weight: 800 !important;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
@@ -632,18 +632,18 @@
 
 .view-stock:not(.view-stock-opname) .stock-variant-actions button {
   min-height: 26px !important;
-  border: 1px solid rgba(16, 185, 129, 0.28) !important;
+  border: 1px solid rgb(var(--pos-shadow-rgb, 16 185 129) / 0.28) !important;
   border-radius: 999px !important;
   background: #fff !important;
-  color: var(--green-dark) !important;
+  color: var(--pos-accent-dark, var(--green-dark)) !important;
   padding: 0 9px !important;
   font-size: 10px !important;
   font-weight: 700 !important;
 }
 
 .view-stock:not(.view-stock-opname) .stock-variant-actions button.active {
-  background: var(--green) !important;
-  border-color: var(--green) !important;
+  background: var(--pos-accent, var(--green)) !important;
+  border-color: var(--pos-accent, var(--green)) !important;
   color: #fff !important;
 }
 
@@ -740,7 +740,7 @@
   width: 30px !important;
   height: 30px !important;
   border-radius: 10px !important;
-  box-shadow: 0 5px 12px rgba(15, 81, 63, .12) !important;
+  box-shadow: 0 5px 12px rgb(var(--pos-shadow-rgb, 15 81 63) / .12) !important;
 }
 
 .app-shell .mobile-header-menu svg {

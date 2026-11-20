@@ -1,4 +1,6 @@
 const STORAGE_KEY = "omnipos_mvp_state_v1";
+const DEVICE_PRINTER_STORAGE_KEY = "kasirin_device_printer_v1";
+const DEVICE_KITCHEN_PRINTER_STORAGE_KEY = "pizzain_device_printer_b_v1";
 const LOCAL_DB_NAME = "omnipos_local_db";
 const LOCAL_DB_VERSION = 1;
 const LOCAL_DB_STORE = "app_state";
@@ -33,7 +35,7 @@ const EGRESS_SAVER_ORDER_LIMIT = 120;
 const EGRESS_SAVER_ORDER_LOOKBACK_HOURS = 30;
 const EGRESS_SAVER_MASTER_CACHE_MS = 6 * 60000;
 const EGRESS_SAVER_DELTA_OVERLAP_MS = 2 * 60000;
-const LIVE_ORDER_COLUMNS = "id,order_number,source,type,customer_name,service_info,note,status,payment_status,subtotal,discount,tax_amount,service_fee,delivery_fee,grand_total,print_receipt,prepared_items,created_at,updated_at,confirmed_at,prepared_at,ready_at,completed_at,cancelled_at,cancel_reason";
+const LIVE_ORDER_COLUMNS = "id,order_number,source,type,customer_name,service_info,note,status,payment_status,subtotal,discount,tax_amount,service_fee,delivery_fee,grand_total,print_receipt,prepared_items,created_at,updated_at,confirmed_at,prepared_at,ready_at,completed_at,cancelled_at,cancel_reason,customer_order_type,customer_order_status,customer_phone,pickup_time,payment_provider,driver_id";
 const LIVE_ORDER_ITEM_COLUMNS = "id,order_id,product_name,sku,qty,price,cost,discount,variant_label,variant_data,note";
 const LIVE_ORDER_ADDON_COLUMNS = "order_item_id,addon_id,addon_name,qty,price,cost";
 const LIVE_ORDER_PAYMENT_COLUMNS = "order_id,method,received_amount,change_amount,payment_breakdown,paid_at";
@@ -65,7 +67,7 @@ const ORDER_TYPES = [
 
 const navItems = [
   ["dashboard", "&#9638;", "Dashboard"],
-  ["pos", "&#9633;", "Kasir"],
+  ["pos", "&#9633;", "Penjualan"],
   ["kitchen", "&#9832;", "Dapur"],
   ["orders", "&#9776;", "Pesanan"],
   ["selforder", "&#9749;", "Self Order"],
@@ -149,6 +151,7 @@ const initialState = {
     receiptWidth: "58mm",
     receiptBottomFeedLines: 1,
     selfOrderAppName: "",
+    selfOrderOperatingHours: null,
     selfOrderOutletName: "",
     selfOrderProfileImageDataUrl: "",
     selfOrderPromoImageDataUrl: "",
@@ -165,6 +168,7 @@ const initialState = {
     orderNotificationVolume: 70,
     orderNotificationReminderSeconds: 180,
     printerConnection: "Bluetooth",
+    printerPrintMode: "formatted",
     printerDevice: "",
     printerDeviceId: ""
   },
@@ -202,17 +206,21 @@ let itemDisplay = localStorage.getItem("omnipos_item_display") || "list";
 let savedPaymentAmounts = JSON.parse(localStorage.getItem("omnipos_saved_payment_amounts") || "[20000,50000,100000]");
 let posProductSnapshotCache = { signature: "", snapshot: null };
 let posProductImageSrcCache = new Map();
+let mediaImageSrcCache = new Map();
 let kitchenAvailabilityCategory = "Semua";
 let kitchenAvailabilityExpandedProductId = "";
 let settingsTab = localStorage.getItem("omnipos_settings_tab") || "data";
+let receiptSettingsProfile = "";
 let supabaseClient = null;
 let supabaseSession = null;
 let supabaseStatus = "Memuat koneksi...";
 let supabaseReportRecords = [];
+let supabaseReportCoverage = null;
 let supabaseReportsLoading = false;
 let supabaseReportsLoadedAt = 0;
 let supabaseReportLoadKey = "";
 let supabaseReportDetailCache = new Map();
+const reportOrderDetailLoadingKeys = new Set();
 let supabaseProductSalesRecords = [];
 let supabaseProductSalesLoading = false;
 let supabaseProductSalesLoadedAt = 0;
@@ -535,6 +543,53 @@ function loadState() {
   }
 }
 
+function devicePrinterSettings(settings = {}) {
+  return {
+    printerConnection: String(settings.printerConnection || "Bluetooth").trim() || "Bluetooth",
+    printerDevice: String(settings.printerDevice || "").trim(),
+    printerDeviceId: String(settings.printerDeviceId || "").trim(),
+    printerPrintMode: settings.printerPrintMode === "text" ? "text" : "formatted"
+  };
+}
+
+function readDevicePrinterSettings(slot = "A") {
+  const key = slot === "B" ? DEVICE_KITCHEN_PRINTER_STORAGE_KEY : DEVICE_PRINTER_STORAGE_KEY;
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "null");
+    if (!value || Array.isArray(value) || typeof value !== "object") return null;
+    if (!["printerConnection", "printerDevice", "printerDeviceId"].every(key => typeof value[key] === "string")) return null;
+    return devicePrinterSettings(value);
+  } catch {
+    return null;
+  }
+}
+
+function saveDevicePrinterSettings(slot = "A") {
+  const key = slot === "B" ? DEVICE_KITCHEN_PRINTER_STORAGE_KEY : DEVICE_PRINTER_STORAGE_KEY;
+  const settings = slot === "B" ? (state.settings.printerB ??= {}) : state.settings;
+  const printer = devicePrinterSettings(settings);
+  Object.assign(settings, printer);
+  try {
+    localStorage.setItem(key, JSON.stringify(printer));
+  } catch (error) {
+    // The regular IndexedDB state still persists this device's selection.
+    console.warn("Device printer preference save failed", error);
+  }
+}
+
+function applyDevicePrinterSettings() {
+  const secondPrinter = readDevicePrinterSettings("B");
+  if (secondPrinter) state.settings.printerB = secondPrinter;
+  const printer = readDevicePrinterSettings();
+  if (printer) {
+    Object.assign(state.settings, printer);
+    return;
+  }
+  Object.assign(state.settings, devicePrinterSettings(state.settings));
+  // Do not seed empty startup defaults before IndexedDB has restored legacy settings.
+  if (state.settings.printerDevice || state.settings.printerDeviceId) saveDevicePrinterSettings();
+}
+
 function saveState() {
   const persistedState = persistedStateSnapshot(state);
   if (!localDbReady) localDbDirtyBeforeLoad = true;
@@ -732,6 +787,7 @@ function normalizeState() {
   state.categories ||= [];
   normalizeStaffState();
   state.settings = { ...initialState.settings, ...(state.settings || {}) };
+  applyDevicePrinterSettings();
   if (String(state.settings.receiptStoreName || "").trim().toUpperCase() === "OMNIPOS") {
     state.settings.receiptStoreName = "Kasirin!";
   }
@@ -1148,7 +1204,7 @@ function selfOrderTableCodeFromUrl() {
     }
     const hashCompact = String(location.hash || "").replace(/^#/, "").split("?")[0] || "";
     if (hashCompact && hashCompact !== "selforder") candidates.push(hashCompact);
-    const pathMatch = String(location.pathname || "").match(/\/self-order\/(?:meja-?|m-?)?([A-Za-z]?-?\d{1,2})\/?$/i);
+    const pathMatch = String(location.pathname || "").match(/\/(?:self-order|order)\/(?:meja-?|m-?)?([A-Za-z]?-?\d{1,2})\/?$/i);
     if (pathMatch) candidates.push(pathMatch[1]);
   } catch (error) {
     console.warn("Gagal membaca kode meja dari URL", error);
@@ -1587,6 +1643,18 @@ function resolveSelfOrderPromoSlideImage(slide = null) {
   return normalizePersistedImageUrl(product?.imageName || "");
 }
 
+function mediaImageCacheKey(value, size = 160) {
+  return `${size}|${String(value || "").trim()}`;
+}
+
+function mediaImageLoaded(image, value, size = 160) {
+  const src = image?.currentSrc || image?.src || "";
+  if (!src || !image.naturalWidth) return;
+  if (image.dataset) image.dataset.loaded = "1";
+  mediaImageSrcCache.set(mediaImageCacheKey(value, size), src);
+  if (mediaImageSrcCache.size > 256) mediaImageSrcCache.delete(mediaImageSrcCache.keys().next().value);
+}
+
 function mediaImageCandidates(value, size = 160) {
   const raw = String(value || "").trim();
   if (!raw) return [];
@@ -1594,12 +1662,15 @@ function mediaImageCandidates(value, size = 160) {
   const driveId = mediaDriveId(raw);
   if (driveId) {
     const thumbnailSizes = [...new Set([size, 1200, 960, 640, 360, 160].filter(item => Number(item) > 0))];
-    candidates.unshift(...thumbnailSizes.map(item => `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveId)}=w${item}`));
+    const thumbnails = thumbnailSizes.map(item => `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveId)}=w${item}`);
+    if (raw === `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveId)}=s0`) candidates.push(...thumbnails);
+    else candidates.unshift(...thumbnails);
     candidates.push(...thumbnailSizes.map(item => `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId)}&sz=w${item}`));
     candidates.push(`https://drive.google.com/uc?export=view&id=${encodeURIComponent(driveId)}`);
     candidates.push(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveId)}&export=view`);
   }
-  return [...new Set(candidates)];
+  const cached = mediaImageSrcCache.get(mediaImageCacheKey(raw, size));
+  return [...new Set([...(cached ? [cached] : []), ...candidates])];
 }
 
 function mediaImageSrc(value, size = 160) {
@@ -1618,7 +1689,7 @@ function mediaImageTag(value, alt, className = "", size = 160, loading = "lazy",
   const src = mediaImageSrc(value, size);
   if (!src) return "";
   const priority = loading === "eager" ? ` fetchpriority="high"` : "";
-  return `<img ${className ? `class="${escapeHtml(className)}" ` : ""}src="${escapeHtml(src)}" data-media-index="0" onerror="${mediaImageFallbackScript(value, size, fallbackValue)}" alt="${escapeHtml(alt)}" loading="${escapeHtml(loading)}" decoding="async" referrerpolicy="no-referrer"${priority} />`;
+  return `<img ${className ? `class="${escapeHtml(className)}" ` : ""}src="${escapeHtml(src)}" data-media-cache-key="${escapeHtml(mediaImageCacheKey(value, size) + "|" + fallbackValue)}" data-media-index="0" onload="mediaImageLoaded(this,${escapeHtml(JSON.stringify(String(value || "")))},${Number(size) || 160})" onerror="${mediaImageFallbackScript(value, size, fallbackValue)}" alt="${escapeHtml(alt)}" loading="${escapeHtml(loading)}" decoding="async" referrerpolicy="no-referrer"${priority} />`;
 }
 
 function posProductImageCacheKey(value, size = POS_PRODUCT_IMAGE_SIZE) {
@@ -1650,8 +1721,16 @@ function selfOrderPromoImageMarkup(image, alt, fallbackImage = "", options = nul
   return photo ? `${photo}<div class="self-order-promo-empty media-fallback-token" hidden></div>` : `<div class="self-order-promo-empty"></div>`;
 }
 
+function productPhotoSource(value) {
+  const image = String(value || "").trim();
+  const driveId = /^https:\/\/(?:drive\.google\.com|lh3\.googleusercontent\.com|drive\.usercontent\.google\.com)\//i.test(image)
+    ? mediaDriveId(image) : "";
+  return driveId ? `https://lh3.googleusercontent.com/d/${encodeURIComponent(driveId)}=s0` : image;
+}
+
 function productImageOrToken(product, className = "", size = 360) {
-  const photo = mediaImageTag(product.imageName, `Foto ${product.name}`, className, size);
+  const photo = mediaImageTag(productPhotoSource(product.imageName), `Foto ${product.name}`, className, size)
+    .replace("<img ", '<img data-self-order-photo ');
   const initials = String(product.name || "PR").slice(0, 2).toUpperCase();
   const token = `<span class="${escapeHtml(className)} self-order-product-token media-fallback-token" ${photo ? "hidden" : ""}>${escapeHtml(initials)}</span>`;
   if (photo) return `${photo}${token}`;
@@ -1768,6 +1847,10 @@ function loadSupabaseLibraryAsync() {
   }
   return loadExternalScriptOnce("supabase-js-cdn", SUPABASE_JS_CDN, {
     onload: () => window.initSupabaseAfterLibraryLoad?.()
+  }).catch(error => {
+    supabaseStatus = "Library Supabase gagal dimuat.";
+    console.warn("Supabase library unavailable; REST reads remain available", error);
+    return null;
   });
 }
 
@@ -2028,7 +2111,7 @@ function orderNotificationKey(order) {
   if (!orderVisibleInPosOrderList(order)) return "";
   const base = String(order?.supabaseId || order?.number || order?.id || "").trim();
   if (!base) return "";
-  return [base, String(order?.status || ""), orderNotificationItemRevision(order)].join("|");
+  return [base, String(order?.status || ""), orderNotificationItemRevision(order), orderNeedsCashierConfirmation(order) ? "confirmation" : "production"].join("|");
 }
 
 function orderNotificationDeliveryKey(order) {
@@ -2036,7 +2119,7 @@ function orderNotificationDeliveryKey(order) {
   if (!base) return "";
   const items = Array.isArray(order?.items) ? order.items : [];
   const maxBatch = items.reduce((max, item) => Math.max(max, orderItemBatch(item)), 1);
-  return [base, String(order?.status || ""), `batch:${maxBatch}`].join("|");
+  return [base, String(order?.status || ""), `batch:${maxBatch}`, orderNeedsCashierConfirmation(order) ? "confirmation" : "production"].join("|");
 }
 
 function claimOrderNotificationDelivery(order, reason = "") {
@@ -2276,8 +2359,29 @@ function orderPushNotificationCategories(order = {}) {
   return newestCategories.length ? newestCategories : orderKitchenNotificationCategories(order);
 }
 
+function orderNeedsCashierConfirmation(order = {}) {
+  const status = String(order.status || "").trim().toLowerCase();
+  const mode = String(order.customerOrderType || order.orderMode || order.customer_order_type || "").toUpperCase();
+  const type = String(order.type || "").trim().toLowerCase();
+  const source = String(order.source || "").trim().toLowerCase();
+  const progress = String(order.customerOrderStatus || order.customer_order_status || "").toUpperCase();
+  if (status !== "pesanan baru" || order.confirmedAt || order.confirmed_at || order.cancelledAt || order.cancelled_at
+    || order.preparedAt || order.prepared_at || order.readyAt || order.ready_at
+    || ["SCHEDULED", "SEARCHING_DRIVER", "NO_DRIVER_AVAILABLE", "CANCELLED", "COMPLETED"].includes(progress)) return false;
+  if (mode === "DELIVERY" || type === "delivery") {
+    return Boolean(order.driverId || order.driver_id)
+      && ["WAITING_ACCEPTANCE", "WAITING_CASHIER", "WAITING_CONFIRMATION"].includes(progress);
+  }
+  const provider = String(order.paymentProvider || order.payment_provider || "");
+  const paid = String(order.paymentStatus || order.payment_status || "").toLowerCase() === "lunas";
+  if (mode === "PICKUP_PREORDER" && provider && provider !== "cash_at_outlet" && !paid) return false;
+  return ["PICKUP_PREORDER", "TAKEAWAY"].includes(mode) || (type === "take away" && source === "self order");
+}
+
+
 function orderMatchesKitchenNotificationCategories(order = {}) {
   const selected = deviceKitchenNotificationCategories();
+  if (orderNeedsCashierConfirmation(order)) return selected.some(category => category.toLowerCase() === "__confirmation__");
   if (!selected.length) return true;
   const selectedKeys = new Set(selected.map(category => category.toLowerCase()));
   return orderKitchenNotificationCategories(order).some(category => selectedKeys.has(category.toLowerCase()));
@@ -2787,6 +2891,7 @@ function isBlockingInteractionActive() {
   return Boolean(
     isUserEditingInteractiveElement()
     || drawer?.classList?.contains("open")
+    || document.getElementById("selfOrderCrustDialog")?.open
     || activeModalState
     || appConfirmHandlers.confirm
     || appConfirmHandlers.cancel
@@ -2801,6 +2906,7 @@ function shouldRenderAfterRealtimeLoad(kind) {
   if (view !== "selforder") return ["pos", "kitchen", "orders", "dashboard", "products", "stock", "stock-opname", "settings"].includes(view);
   const step = selfOrderStep();
   if (kind === "orders") return step === "success";
+  if (kind === "settings" && step === "gateway") return true;
   return step === "menu" || step === "success";
 }
 
@@ -2814,6 +2920,7 @@ function reportRenderAfterDataLoad() {
 }
 
 function renderWhenInteractionIdle() {
+  updateOrderNavigationBadges();
   if (isBlockingInteractionActive()) {
     deferredRealtimeRender = true;
     return false;
@@ -2949,12 +3056,14 @@ async function selectCategoriesFromSupabase() {
 }
 
 async function selectAddonsFromSupabase(addonColumns) {
-  const columns = addonColumns || MASTER_ADDON_COLUMNS;
-  const result = supabaseReadable()
-    ? await supabaseClient.from("addons").select(columns).order("name", { ascending: true })
-    : await supabaseRestSelect("addons", columns, { order: "name.asc", limit: "5000" })
+  const baseColumns = addonColumns || MASTER_ADDON_COLUMNS;
+  const select = columns => supabaseReadable()
+    ? supabaseClient.from("addons").select(columns).order("name", { ascending: true })
+    : supabaseRestSelect("addons", columns, { order: "name.asc", limit: "5000" })
       .then(data => ({ data, error: null }))
       .catch(error => ({ data: null, error }));
+  let result = await select(`${baseColumns},selection_type`);
+  if (isMissingAddonSelectionTypeColumn(result.error)) result = await select(baseColumns);
   if (isMissingSupabaseTableError(result.error, "addons")) return { data: [], error: null };
   return result;
 }
@@ -3281,8 +3390,53 @@ function orderIsCustomerHomeOrder(order) {
   return source === "self order" && ["delivery", "take away"].includes(type) && /^[DP]\d{1,6}$/i.test(number);
 }
 
+function orderUsesOutletPayment(order) {
+  return orderIsCustomerHomeOrder(order)
+    && ["cash_at_outlet", "courier_cash"].includes(String(order?.paymentProvider || order?.payment_provider || "").toLowerCase());
+}
+
 function orderVisibleInPosOrderList(order) {
+  if (orderUsesOutletPayment(order)) {
+    const delivery = String(order.customerOrderType || order.orderMode || order.customer_order_type || "").toUpperCase() === "DELIVERY" || order.type === "Delivery";
+    if (delivery && String(order.paymentProvider || order.payment_provider || "").toLowerCase() === "courier_cash") {
+      if (order.cancelledAt || order.cancelled_at || ["Dibatalkan", "Batal"].includes(order.status)) return true;
+      if (["SEARCHING_DRIVER", "NO_DRIVER_AVAILABLE"].includes(String(order.customerOrderStatus || order.customer_order_status || ""))) return false;
+      return Boolean(order.confirmedAt || order.confirmed_at || order.preparedAt || order.prepared_at || order.readyAt || order.ready_at)
+        || ["Sedang Disiapkan", "Siap Diambil", "Siap diambil", "Selesai", "Dibatalkan", "Batal"].includes(order.status)
+        || Boolean(order.cancelledAt || order.cancelled_at);
+    }
+    return !delivery || Boolean(order.driverId || order.driver_id)
+      || !["SEARCHING_DRIVER", "NO_DRIVER_AVAILABLE", ""].includes(String(order.customerOrderStatus || order.customer_order_status || ""));
+  }
   return !orderIsCustomerHomeOrder(order) || orderIsPaid(order);
+}
+
+function orderNeedsTakeawayCashier(order) {
+  return orderNeedsCashierConfirmation(order);
+}
+
+function orderNavigationBadgeCount(id) {
+  if (!["orders", "kitchen"].includes(id)) return 0;
+  const pending = (state.orders || []).filter(order => isNewOrderStatus(order) && !orderIsCancelled(order) && orderVisibleInPosOrderList(order));
+  if (id === "orders") return pending.length;
+  return pending.filter(order => orderNeedsTakeawayCashier(order)
+    || (typeof kitchenOrderIsVisible === "function" && kitchenOrderIsVisible(order, "Pesanan Baru", ["Pesanan Baru"]))).length;
+}
+
+function renderOrderNavigationBadge(id) {
+  if (!["orders", "kitchen"].includes(id)) return "";
+  const count = orderNavigationBadgeCount(id);
+  return `<span class="order-nav-count" data-order-nav-count="${id}" aria-label="${count} pesanan baru" ${count ? "" : "hidden"}>${count}</span>`;
+}
+
+function updateOrderNavigationBadges() {
+  if (typeof document === "undefined" || !document.querySelectorAll) return;
+  document.querySelectorAll("[data-order-nav-count]").forEach(badge => {
+    const count = orderNavigationBadgeCount(badge.dataset.orderNavCount);
+    badge.textContent = String(count);
+    badge.hidden = count === 0;
+    badge.setAttribute("aria-label", `${count} pesanan baru`);
+  });
 }
 
 function orderServiceInfoDisplay(order) {
@@ -3411,7 +3565,37 @@ function orderSyncQueueId(order) {
   return order?.id || order?.number || "";
 }
 
+function orderIsRetiredTakeawayExpiryCancellation(order) {
+  return String(order?.source || "").trim().toLowerCase() === "self order"
+    && String(order?.type || "").trim().toLowerCase() === "take away"
+    && order?.status === "Dibatalkan"
+    && /^pesanan takeaway kedaluwarsa otomatis karena belum dibayar\.?$/i.test(String(order.cancelReason || order.cancel_reason || "").trim());
+}
+
+function rejectRetiredTakeawayExpiryCancellation(order, options = {}) {
+  if (!orderIsRetiredTakeawayExpiryCancellation(order)) return false;
+  const matches = item => item.orderId === orderSyncQueueId(order) || item.orderNumber === order.number;
+  state.syncQueue = (state.syncQueue || []).filter(item => !(item.type === "order" && matches(item)
+    && orderIsRetiredTakeawayExpiryCancellation(item.payload || order)));
+  const message = "Pembatalan otomatis Take Away sudah dinonaktifkan. Status pesanan dimuat ulang dari server.";
+  for (const current of new Set([order, ...(state.orders || []).filter(item => item.id === order.id || item.number === order.number)])) {
+    if (!orderIsRetiredTakeawayExpiryCancellation(current)) continue;
+    current.syncStatus = orderHasPendingLocalSync(current) ? "pending" : "blocked";
+    current.syncError = message;
+    if (current.takeawayStatus === "EXPIRED") current.takeawayStatus = "";
+    clearKitchenOptimisticOrderMutation(current);
+  }
+  saveState();
+  if (order.supabaseId) {
+    Promise.resolve(requestLiveOrderRefresh({ reason: "orders-refresh", force: true, silent: true, orderIds: [order.supabaseId] }))
+      .catch(error => console.warn("Takeaway canonical refresh failed", error));
+  }
+  if (!options.silent) toast(message, 4800);
+  return true;
+}
+
 function invalidateReportCaches() {
+  supabaseReportCoverage = null;
   supabaseReportLoadKey = "";
   supabaseReportsLoadedAt = 0;
   supabaseReportRecords = [];
@@ -3631,6 +3815,24 @@ function normalizeSupabaseCategory(row) {
   return row?.name || "";
 }
 
+function addonSelectionType(addon) {
+  if (addon.selectionType === "crust" || addon.selectionType === "extra") return addon.selectionType;
+  return /\b(?:corner|crust|pinggiran)\b/i.test(addon.name || "") ? "crust" : "extra";
+}
+
+function selfOrderAddonDisplayName(addon) {
+  const name = String(addon.name || "").trim();
+  const catalogAddon = (addon.id && state.addons.find(item => item.id === addon.id || item.supabaseId === addon.id))
+    || state.addons.find(item => item.name === name);
+  const label = name.replace(/\s+(?:regular|reguler|large)$/i, "");
+  return (addonSelectionType(catalogAddon || addon) === "crust" ? label.replace(/\s+corner$/i, "") : label) || name;
+}
+
+function isMissingAddonSelectionTypeColumn(error) {
+  return isSupabaseMissingRelationOrColumnError(error)
+    && /\bselection_type\b/i.test([error?.message, error?.details, error?.hint].join(" "));
+}
+
 function normalizeSupabaseAddon(row) {
   const hasSoldOutColumn = Object.prototype.hasOwnProperty.call(row || {}, "sold_out");
   if (hasSoldOutColumn) supabaseAddonSoldOutColumnReady = true;
@@ -3641,7 +3843,8 @@ function normalizeSupabaseAddon(row) {
     price: Number(row.price || 0),
     cost: Number(row.cost || 0),
     active: row.active !== false,
-    soldOut: hasSoldOutColumn ? Boolean(row.sold_out) : false
+    soldOut: hasSoldOutColumn ? Boolean(row.sold_out) : false,
+    ...(row.selection_type ? { selectionType: row.selection_type } : {})
   };
 }
 
@@ -3718,6 +3921,7 @@ function addonPayload(addon) {
     cost: Number(addon.cost || 0),
     active: addon.active !== false
   };
+  if (addon.selectionType) payload.selection_type = addon.selectionType;
   if (supabaseAddonSoldOutColumnReady) payload.sold_out = Boolean(addon.soldOut);
   return payload;
 }
@@ -3941,22 +4145,29 @@ async function ensureSupabaseCategory(name) {
 async function upsertSupabaseAddon(addon) {
   const payload = addonPayload(addon);
   const existing = await findSingleBy("addons", "local_id", payload.local_id, "id");
-  if (existing?.id) {
-    let { error } = await supabaseClient.from("addons").update(payload).eq("id", existing.id);
-    if (isMissingAddonSoldOutColumnError(error)) {
-      supabaseAddonSoldOutColumnReady = false;
-      ({ error } = await supabaseClient.from("addons").update(addonPayloadWithoutSoldOut(payload)).eq("id", existing.id));
-    }
-    if (error) throw error;
-    return existing.id;
+  const write = values => existing?.id
+    ? supabaseClient.from("addons").update(values).eq("id", existing.id)
+    : supabaseClient.from("addons").insert(values).select("id").single();
+  let values = payload;
+  let result = await write(values);
+  if (isMissingAddonSelectionTypeColumn(result.error) &&
+      addon.selectionType === addonSelectionType({ name: addon.name })) {
+    values = { ...values };
+    delete values.selection_type;
+    result = await write(values);
   }
-  let { data, error } = await supabaseClient.from("addons").insert(payload).select("id").single();
-  if (isMissingAddonSoldOutColumnError(error)) {
+  if (isMissingAddonSoldOutColumnError(result.error) && !isMissingAddonSelectionTypeColumn(result.error)) {
     supabaseAddonSoldOutColumnReady = false;
-    ({ data, error } = await supabaseClient.from("addons").insert(addonPayloadWithoutSoldOut(payload)).select("id").single());
+    values = addonPayloadWithoutSoldOut(values);
+    result = await write(values);
+    if (isMissingAddonSelectionTypeColumn(result.error) &&
+        addon.selectionType === addonSelectionType({ name: addon.name })) {
+      delete values.selection_type;
+      result = await write(values);
+    }
   }
-  if (error) throw error;
-  return data.id;
+  if (result.error) throw result.error;
+  return existing?.id || result.data.id;
 }
 
 async function upsertSupabaseProduct(product) {
@@ -4461,6 +4672,7 @@ async function processSyncQueue(reason = "manual") {
           ...order, ...JSON.parse(JSON.stringify(item.payload)),
           id: order.id, supabaseId: order.supabaseId || item.payload.supabaseId
         } : order;
+        if (rejectRetiredTakeawayExpiryCancellation(queuedOrder, { silent: true })) continue;
         if (!state.orders.includes(order)) state.orders.unshift(order);
         await syncOrderToSupabase(queuedOrder, {
           fromQueue: true, silent: true, statusOnly: item.syncMode === "status", requestSequence: item.requestSequence
@@ -4629,6 +4841,7 @@ async function submitSelfOrderConfirmed(order) {
 
 async function syncOrderToSupabase(order, options = {}) {
   if (!order) return false;
+  if (rejectRetiredTakeawayExpiryCancellation(order, options)) return false;
   const snapshot = JSON.parse(JSON.stringify(order));
   const localOrder = order;
   localOrder.syncConflict = "";
@@ -4705,7 +4918,18 @@ async function syncOrderToSupabase(order, options = {}) {
       notification_categories: orderPushNotificationCategories(order),
       prepared_items: order.preparedItems || {}
     };
-    const { data: orderRows, error: orderError } = await upsertSupabaseOrderPayload(orderPayload);
+    if (!order.supabaseId && order.customerPhone) orderPayload.customer_phone = order.customerPhone;
+    if (!order.supabaseId && order.publicOrderToken) orderPayload.public_order_token = order.publicOrderToken;
+    if (orderUsesOutletPayment(order) && !order.supabaseId) Object.assign(orderPayload, {
+      customer_order_type: order.customerOrderType || order.orderMode,
+      customer_order_status: order.customerOrderStatus || "WAITING_ACCEPTANCE",
+      pickup_time: order.pickupTime || null,
+      payment_provider: order.paymentProvider, public_order_token: order.publicOrderToken || "",
+      delivery_address: order.deliveryAddress || "", delivery_note: order.deliveryNote || "",
+      delivery_location: order.deliveryLocation || "", delivery_latitude: order.deliveryLatitude ?? null,
+      delivery_longitude: order.deliveryLongitude ?? null
+    });
+    const { data: orderRows, error: orderError } = await upsertSupabaseOrderPayload(orderPayload, order);
     if (orderError) throw orderError;
     const supabaseOrderId = orderRows.id;
     order.supabaseId = supabaseOrderId;
@@ -4870,10 +5094,17 @@ async function syncOrderToSupabase(order, options = {}) {
   }
 }
 
-async function upsertSupabaseOrderPayload(orderPayload) {
+async function upsertSupabaseOrderPayload(orderPayload, order = {}) {
   const { data: current, error: readError } = await supabaseClient.from("orders")
-    .select("id,payment_status,updated_at").eq("order_number", orderPayload.order_number).maybeSingle();
+    .select("id,payment_status,updated_at,public_order_token").eq("order_number", orderPayload.order_number).maybeSingle();
   if (readError) return { data: null, error: readError };
+  // A number alone must never identify a different customer's new order.
+  if (current && ((order.supabaseId && current.id !== order.supabaseId)
+    || (!order.supabaseId && (order.publicOrderToken
+      ? current.public_order_token !== order.publicOrderToken
+      : /^T\d{1,18}$/i.test(orderPayload.order_number))))) {
+    return { data: null, error: { code: "ORDER_NUMBER_CONFLICT", message: "Nomor pesanan sudah digunakan. Silakan coba lagi." } };
+  }
   if (current?.payment_status === "Lunas" && orderPayload.payment_status !== "Lunas") {
     return { data: null, error: { code: "ORDER_ALREADY_PAID", orderId: current.id, message: "Pesanan sudah lunas." } };
   }
@@ -5291,6 +5522,9 @@ function normalizeStoreSettingsRow(row) {
     ? selfOrderSettings.receipt
     : {};
   return {
+    deliveryStoreLatitude: normalizeOutletCoordinate(selfOrderSettings.delivery?.latitude, 90),
+    deliveryStoreLongitude: normalizeOutletCoordinate(selfOrderSettings.delivery?.longitude, 180),
+    deliveryGeoapifyApiKey: String(selfOrderSettings.delivery?.geoapifyApiKey || ""),
     receiptStoreName: row.receipt_store_name || row.store_name || "",
     receiptAddress: row.store_address || "",
     receiptPhone: row.store_phone || "",
@@ -5316,10 +5550,8 @@ function normalizeStoreSettingsRow(row) {
     syncEndpoint: row.sync_endpoint || state.settings.syncEndpoint,
     autoBackup: row.auto_backup !== false,
     selfOrderAppName: selfOrderSettings.appName || "",
+    selfOrderOperatingHours: selfOrderSettings.onlineOperatingHours || null,
     selfOrderOutletName: selfOrderSettings.outletName || "",
-    deliveryStoreLatitude: normalizeOutletCoordinate(selfOrderSettings.delivery?.latitude, 90),
-    deliveryStoreLongitude: normalizeOutletCoordinate(selfOrderSettings.delivery?.longitude, 180),
-    deliveryGeoapifyApiKey: String(selfOrderSettings.delivery?.geoapifyApiKey || ""),
     selfOrderProfileImageDataUrl: normalizePersistedImageUrl(selfOrderSettings.profileImage || ""),
     selfOrderPromoImageDataUrl: normalizePersistedImageUrl(selfOrderSettings.promoImage || ""),
     selfOrderPromoTargetProductId: selfOrderSettings.promoTargetProductId || "",
@@ -5336,9 +5568,6 @@ function normalizeStoreSettingsRow(row) {
     orderNotificationReminderSeconds: Number.isFinite(Number(selfOrderSettings.notifications?.reminderIntervalSeconds))
       ? Math.max(10, Math.min(3600, Number(selfOrderSettings.notifications.reminderIntervalSeconds)))
       : 180,
-    printerConnection: selfOrderSettings.printer?.connection || state.settings.printerConnection || "Bluetooth",
-    printerDevice: selfOrderSettings.printer?.device || state.settings.printerDevice || "",
-    printerDeviceId: selfOrderSettings.printer?.deviceId || state.settings.printerDeviceId || "",
     staffSync: selfOrderSettings.staff || null,
     masterDeletedProducts: normalizeDeletedProductMarkers(selfOrderSettings.masterDeletedProducts || []),
     masterDeletedCategories: normalizeDeletedNameMarkers(selfOrderSettings.masterDeletedCategories || []),
@@ -5363,13 +5592,14 @@ function storeSettingsPayload() {
     sync_endpoint: settings.syncEndpoint || null,
     auto_backup: settings.autoBackup !== false,
     self_order_settings: {
-      appName: settings.selfOrderAppName || "",
-      outletName: settings.selfOrderOutletName || "",
       delivery: {
         latitude: normalizeOutletCoordinate(settings.deliveryStoreLatitude, 90),
         longitude: normalizeOutletCoordinate(settings.deliveryStoreLongitude, 180),
         geoapifyApiKey: String(settings.deliveryGeoapifyApiKey || "").trim()
       },
+      appName: settings.selfOrderAppName || "",
+      onlineOperatingHours: settings.selfOrderOperatingHours || null,
+      outletName: settings.selfOrderOutletName || "",
       profileImage: normalizePersistedImageUrl(settings.selfOrderProfileImageDataUrl || ""),
       promoImage,
       promoTargetProductId: settings.selfOrderPromoTargetProductId || "",
@@ -5400,11 +5630,6 @@ function storeSettingsPayload() {
         volume: Math.max(0, Math.min(100, Number(settings.orderNotificationVolume || 70))),
         reminderIntervalSeconds: Math.max(10, Math.min(3600, Number(settings.orderNotificationReminderSeconds || 180)))
       },
-      printer: {
-        connection: settings.printerConnection || "Bluetooth",
-        device: settings.printerDevice || "",
-        deviceId: settings.printerDeviceId || ""
-      },
       staff: staffSyncPayload(),
       masterDeletedProducts: normalizeDeletedProductMarkers(state.deletedProducts || []),
       masterDeletedCategories: normalizeDeletedNameMarkers(state.deletedCategories || []),
@@ -5433,13 +5658,36 @@ async function selectStoreSettingsRow() {
   return result.data || null;
 }
 
+async function selectPublicSelfOrderSettingsRow() {
+  const fields = [
+    "id", "store_name", "store_address", "store_phone", "receipt_store_name", "receipt_footer",
+    "receipt_width", "receipt_show_table", "receipt_show_qr", "updated_at",
+    "app_name:self_order_settings->>appName", "outlet_name:self_order_settings->>outletName",
+    "profile_image:self_order_settings->>profileImage", "promo_image:self_order_settings->>promoImage",
+    "promo_target:self_order_settings->>promoTargetProductId", "promo_label:self_order_settings->>promoButtonLabel",
+    "promo_slides:self_order_settings->promoSlides", "upsell_ids:self_order_settings->upsellProductIds",
+    "receipt_logo:self_order_settings->receipt->>logoDataUrl",
+    "online_hours:self_order_settings->onlineOperatingHours", "delivery:self_order_settings->delivery"
+  ];
+  const rows = await supabaseRestSelect("store_settings", fields.join(","), { id: `eq.${STORE_SETTINGS_ROW_ID}`, limit: "1" });
+  const row = rows?.[0];
+  if (!row) return null;
+  return { ...row, self_order_settings: {
+    appName: row.app_name, outletName: row.outlet_name, profileImage: row.profile_image,
+    promoImage: row.promo_image, promoTargetProductId: row.promo_target,
+    promoButtonLabel: row.promo_label, promoSlides: row.promo_slides,
+    upsellProductIds: row.upsell_ids, receipt: { logoDataUrl: row.receipt_logo },
+    onlineOperatingHours: row.online_hours, delivery: row.delivery
+  } };
+}
+
 async function loadStoreSettingsFromSupabase(options = {}) {
-  if (!supabaseReadable() || storeSettingsLoading || !localDbReady) return;
+  if ((!supabaseReadable() && !(IS_SELF_ORDER_APP && supabaseRestReadable())) || storeSettingsLoading || !localDbReady) return;
   const freshEnough = Date.now() - storeSettingsLoadedAt < 60000;
   if (!options.force && freshEnough) return;
   storeSettingsLoading = true;
   try {
-    const row = await selectStoreSettingsRow();
+    const row = supabaseReadable() ? await selectStoreSettingsRow() : await selectPublicSelfOrderSettingsRow();
     const settings = normalizeStoreSettingsRow(row);
     if (settings) {
       const { staffSync, masterDeletedProducts, masterDeletedCategories, masterDeletedAddons, ...storeSettings } = settings;
@@ -5963,6 +6211,12 @@ function normalizeSupabaseLiveOrder(orderRow, itemRows = [], addonsByItemId = ne
     receivedAmount: Number(payment?.received_amount || existing?.receivedAmount || 0),
     changeAmount: Number(payment?.change_amount || existing?.changeAmount || 0),
     paymentBreakdown: normalizePaymentBreakdown(payment?.payment_breakdown || existing?.paymentBreakdown || existing?.payment_breakdown || {}),
+    customerOrderType: orderRow.customer_order_type || existing?.customerOrderType || "",
+    orderMode: orderRow.customer_order_type || existing?.orderMode || "",
+    customerOrderStatus: orderRow.customer_order_status || existing?.customerOrderStatus || "",
+    customerPhone: orderRow.customer_phone || existing?.customerPhone || "",
+    pickupTime: orderRow.pickup_time || existing?.pickupTime || "",
+    driverId: orderRow.driver_id || existing?.driverId || "",
     paymentProvider: orderRow.payment_provider || existing?.paymentProvider || "",
     paymentReference: orderRow.payment_reference || existing?.paymentReference || "",
     paymentGatewayTransactionId: orderRow.payment_gateway_transaction_id || existing?.paymentGatewayTransactionId || "",
@@ -6249,7 +6503,11 @@ async function refreshSelfOrderTableOrders(table, options = {}) {
   return loadSelfOrderTableOrdersFromSupabase(table, options);
 }
 
-function normalizeSupabaseReportRecord(row) {
+function normalizeSupabaseReportRecord(row, revenueOrder = null) {
+  const courierCash = revenueOrder?.payment_provider === "courier_cash";
+  const outletTotal = courierCash
+    ? Math.max(0, Number(revenueOrder.grand_total || 0) - Number(revenueOrder.delivery_fee || 0))
+    : Number(row.total || 0);
   return {
     id: row.id,
     number: row.number || row.importKey || "-",
@@ -6266,10 +6524,28 @@ function normalizeSupabaseReportRecord(row) {
     status: row.order_status || row.status || "",
     subtotal: Number(row.subtotal || 0),
     discount: Number(row.discount || 0),
-    total: Number(row.total || 0),
+    total: outletTotal,
+    outletRevenueVerified: courierCash,
     profit: Number(row.profit || 0),
     items: []
   };
+}
+
+async function hydrateReportOutletRevenue(rows) {
+  const deliveryRows = rows.filter(row => !row.imported && String(row.order_type || "").trim().toLowerCase() === "delivery");
+  const ids = [...new Set(deliveryRows.map(row => row.id).filter(Boolean))];
+  const revenueById = new Map();
+  for (let from = 0; from < ids.length; from += 100) {
+    const { data, error } = await supabaseClient.from("orders")
+      .select("id,payment_provider,delivery_fee,grand_total")
+      .in("id", ids.slice(from, from + 100));
+    if (error) throw new Error(error.message || "Rincian pendapatan delivery belum dapat diverifikasi.");
+    for (const order of data || []) revenueById.set(order.id, order);
+  }
+  if (deliveryRows.some(row => !revenueById.has(row.id))) {
+    throw new Error("Rincian pendapatan delivery belum dapat diverifikasi. Muat ulang laporan.");
+  }
+  return rows.map(row => normalizeSupabaseReportRecord(row, row.imported ? null : revenueById.get(row.id)));
 }
 
 function normalizeLegacySalesRow(row) {
@@ -6371,11 +6647,13 @@ async function loadSupabaseOrderDetailForReport(record) {
       type: orderRow.type || record.type,
       customer: orderRow.customer_name || record.customer,
       serviceInfo: orderRow.service_info || record.serviceInfo,
+      note: orderRow.note || record.note || "",
       paymentMethod: payment.method || record.paymentMethod,
       paymentStatus: orderRow.payment_status || record.paymentStatus,
       subtotal: Number(orderRow.subtotal ?? record.subtotal ?? 0),
       discount: Number(orderRow.discount ?? record.discount ?? 0),
-      total: Number(orderRow.grand_total ?? record.total ?? 0),
+      total: Math.max(0, Number(orderRow.grand_total ?? record.total ?? 0)
+        - (orderRow.payment_provider === "courier_cash" ? Number(orderRow.delivery_fee || 0) : 0)),
       profit: Number(orderRow.profit_total ?? record.profit ?? 0),
       receivedAmount: Number(payment.received_amount || 0),
       changeAmount: Number(payment.change_amount || 0),
@@ -6502,8 +6780,9 @@ async function loadSupabaseReportRecords(force = false, range = reportRange()) {
       if (!data || data.length < pageSize) break;
     }
     const merged = new Map();
-    for (const row of allRows.map(normalizeSupabaseReportRecord)) merged.set(reportRecordKey(row), row);
+    for (const row of await hydrateReportOutletRevenue(allRows)) merged.set(reportMergeKey(row), row);
     supabaseReportRecords = [...merged.values()];
+    supabaseReportCoverage = { start: new Date(range.start), end: new Date(range.end) };
     supabaseReportsLoadedAt = Date.now();
     supabaseReportLoadKey = loadKey;
     reportRenderAfterDataLoad();
@@ -6930,6 +7209,7 @@ function ensureToastElement() {
 
 function toast(message, duration = 2400) {
   const el = ensureToastElement();
+  el.classList.remove("online-hours-toast");
   el.textContent = message;
   el.classList.add("show");
   window.clearTimeout(toast.timer);
@@ -7465,10 +7745,38 @@ function refreshPosPage(options = {}) {
 }
 
 function refreshPosOrRender(options = {}) {
+  updateOrderNavigationBadges();
   if (!refreshPosPage(options)) render();
 }
 
+function replaceSelfOrderMarkup(target, markup) {
+  if (view !== "selforder") { target.innerHTML = markup; return; }
+  const images = new Map();
+  const identity = image => `${image.dataset.mediaCacheKey}|${image.getAttribute("alt") || ""}|${image.className}`;
+  target.querySelectorAll("img[data-media-cache-key]").forEach(image => {
+    const key = identity(image);
+    if (!images.has(key)) images.set(key, []);
+    images.get(key).push(image);
+  });
+  const template = document.createElement("template");
+  template.innerHTML = markup;
+  template.content.querySelectorAll("img[data-media-cache-key]").forEach(next => {
+    const previous = images.get(identity(next))?.shift();
+    if (!previous) return;
+    for (const attribute of Array.from(previous.attributes)) {
+      if (attribute.name === "data-loaded" && previous.complete && previous.naturalWidth > 0) continue;
+      if (!next.hasAttribute(attribute.name)) previous.removeAttribute(attribute.name);
+    }
+    for (const attribute of Array.from(next.attributes)) {
+      if (attribute.name !== "src") previous.setAttribute(attribute.name, attribute.value);
+    }
+    next.replaceWith(previous);
+  });
+  target.replaceChildren(template.content);
+}
+
 function render() {
+  if (IS_SELF_ORDER_APP && window.FRESIN_GATEWAY_BOOT_PENDING === true) return;
   captureActiveModalDraft();
   if (IS_SELF_ORDER_APP) {
     renderSelfOrderStandalone();
@@ -7494,7 +7802,7 @@ function render() {
     navOpen ? "nav-open" : "",
     navCollapsed ? "nav-collapsed" : ""
   ].filter(Boolean).join(" ");
-  app.innerHTML = `
+  replaceSelfOrderMarkup(app, `
     <div class="app-shell ${shellClasses}">
       ${navOpen ? `<button class="nav-scrim" onclick="closeNav()" aria-label="Tutup menu"></button>` : ""}
       <aside class="sidebar">
@@ -7505,7 +7813,7 @@ function render() {
           <p>Aplikasi toko, dapur, kasir</p>
         </div>
         <nav class="nav">
-          ${nav.map(([id, icon, label]) => `<button class="${view === id ? "active" : ""}" onclick="go('${id}')"><span class="nav-icon">${navIcon(id)}</span><span class="nav-label">${label}</span></button>`).join("")}
+          ${nav.map(([id, icon, label]) => `<button class="${view === id ? "active" : ""}" onclick="go('${id}')"><span class="nav-icon">${navIcon(id)}</span><span class="nav-label">${label}</span>${renderOrderNavigationBadge(id)}</button>`).join("")}
         </nav>
         <div class="sync-card">
           <strong>Mode lokal aktif</strong><br />
@@ -7526,7 +7834,7 @@ function render() {
     </div>
     <div class="drawer" id="drawer"></div>
     <div class="toast" id="toast"></div>
-  `;
+  `);
   restoreActiveModal();
   normalizeFormAccessibility(app);
   restoreSelfOrderCategoryScroll(false);
@@ -7540,7 +7848,7 @@ function render() {
 function renderSelfOrderStandalone() {
   view = "selforder";
   syncSelfOrderTableFromUrl();
-  app.innerHTML = `
+  replaceSelfOrderMarkup(app, `
     <div class="app-shell view-selforder self-order-standalone-shell">
       <main class="content self-order-standalone-content">
         <section class="page">${renderSelfOrder()}</section>
@@ -7548,7 +7856,7 @@ function renderSelfOrderStandalone() {
     </div>
     <div class="drawer" id="drawer"></div>
     <div class="toast" id="toast"></div>
-  `;
+  `);
   restoreActiveModal();
   normalizeFormAccessibility(app);
   restoreSelfOrderCategoryScroll(false);
@@ -7763,48 +8071,34 @@ function renderAccessDenied() {
 }
 
 function renderStaffLoginScreen() {
-  const loginLogo = String(state.settings?.selfOrderProfileImageDataUrl || state.settings?.receiptLogoDataUrl || "assets/pizzain-logo.jpg").trim();
-  const appName = String(state.settings?.selfOrderAppName || "Pizzain").trim();
-  const outletName = String(state.settings?.selfOrderOutletName || state.outlet || "Outlet Utama").trim();
+  const loginLogo = String(state.settings?.receiptLogoDataUrl || state.settings?.selfOrderProfileImageDataUrl || "").trim();
+  const appName = String(state.settings?.receiptStoreName || state.settings?.selfOrderAppName || "Kasirin!").trim();
+  const outletName = String(state.outlet || state.settings?.selfOrderOutletName || "Outlet Utama").trim();
   return `
     <main class="staff-lock-screen">
-      <section class="staff-lock-card" aria-labelledby="staffLoginTitle">
+      <section class="staff-lock-card">
         <div class="staff-lock-brand">
-          <span class="staff-lock-logo">${mediaImageTag(loginLogo, "Logo Pizzain", "", 160, "eager", "assets/pizzain-logo.jpg")}</span>
+          <span class="staff-lock-logo">${loginLogo ? mediaImageTag(loginLogo, "Logo usaha", "", 320) : staffInitials(appName)}</span>
           <div class="staff-lock-heading">
-            <small>POS</small>
-            <h1 id="staffLoginTitle">${escapeHtml(appName)}</h1>
-            <p>${escapeHtml(outletName)}</p>
+            <small>Kasirin POS</small>
+            <h1>${escapeHtml(appName)}</h1>
+            <p>${escapeHtml(outletName)} - masuk dengan username dan PIN staff.</p>
           </div>
         </div>
         <form class="staff-login-form" onsubmit="loginStaffFromForm(event)">
-          <label class="field staff-login-field">
-            <img class="staff-login-field-icon" src="assets/icons/lucide/user-round.svg" width="18" height="18" alt="" aria-hidden="true" />
-            <input class="input" name="staffCode" type="text" aria-label="Username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username" required />
+          <label class="field">
+            <span>Username</span>
+            <input class="input" name="staffCode" type="text" autocomplete="username" placeholder="Contoh: kasir" required />
           </label>
-          <label class="field staff-login-field staff-login-pin-field">
-            <img class="staff-login-field-icon" src="assets/icons/lucide/lock-keyhole.svg" width="18" height="18" alt="" aria-hidden="true" />
-            <input class="input" name="pin" type="password" aria-label="PIN" placeholder="PIN" inputmode="numeric" autocomplete="current-password" required />
-            <button class="staff-login-pin-toggle" type="button" aria-label="Tampilkan PIN" aria-pressed="false" title="Tampilkan PIN" onclick="toggleStaffLoginPin(this)"><img src="assets/icons/lucide/eye.svg" width="18" height="18" alt="" /></button>
+          <label class="field">
+            <span>PIN</span>
+            <input class="input" name="pin" type="password" inputmode="numeric" autocomplete="current-password" required />
           </label>
-          <button class="btn accent" type="submit"><span>Masuk</span><img src="assets/icons/lucide/arrow-right.svg" width="18" height="18" alt="" aria-hidden="true" /></button>
+          <button class="btn accent" type="submit">Masuk</button>
         </form>
       </section>
     </main>
   `;
-}
-
-function toggleStaffLoginPin(button) {
-  const input = button.closest(".staff-login-field")?.querySelector('input[name="pin"]');
-  if (!input) return;
-  const visible = input.type === "password";
-  input.type = visible ? "text" : "password";
-  const label = visible ? "Sembunyikan PIN" : "Tampilkan PIN";
-  button.setAttribute("aria-label", label);
-  button.setAttribute("aria-pressed", String(visible));
-  button.title = label;
-  button.querySelector("img").src = `assets/icons/lucide/${visible ? "eye-off" : "eye"}.svg`;
-  input.focus({ preventScroll: true });
 }
 
 async function loginStaffFromForm(event) {
@@ -8222,27 +8516,29 @@ function receiptPrintModel(order = null) {
 }
 
 function renderReceiptPaper(order = null) {
-  const settings = state.settings || {};
   const model = receiptPrintModel(order);
-  const source = order || receiptDemoOrder();
-  const dateLine = model.metaLines.find(line => line.type === "center")?.text || receiptDateText(source.createdAt);
-  const metaRows = model.metaLines.filter(line => line.type !== "center");
+  return renderReceiptPrintModel(model, state.settings.receiptHeaderNote);
+}
+
+function renderReceiptPrintModel(model, headerNote = "") {
   const logoChars = model.logo.chars;
-  const headerNote = String(settings.receiptHeaderNote || "").trim();
   const lastHeaderLine = model.headerLines[model.headerLines.length - 1] || "";
-  const logoMarkup = settings.receiptLogoDataUrl
-    ? `<em class="receipt-logo-image" style="--receipt-logo-chars:${logoChars}">${mediaImageTag(settings.receiptLogoDataUrl, "Logo usaha", "", 320)}</em>`
-    : `<em style="--receipt-logo-chars:${logoChars}">${escapeHtml(settings.receiptLogoText || "Logo")}</em>`;
+  const logoMarkup = model.logo.dataUrl
+    ? `<em class="receipt-logo-image" style="--receipt-logo-chars:${logoChars}">${mediaImageTag(model.logo.dataUrl, "Logo usaha", "", 320)}</em>`
+    : `<em style="--receipt-logo-chars:${logoChars}">${escapeHtml(model.logo.text)}</em>`;
   return `
-    <div class="receipt-paper ${settings.receiptShowLogo ? "" : "receipt-no-logo"} ${settings.receiptImageMode === "B" ? "receipt-image-b" : ""} ${settings.receiptWidth === "80mm" ? "receipt-80" : ""}">
-      ${settings.receiptShowLogo ? logoMarkup : ""}
-      <strong class="receipt-store-name">${escapeHtml(model.headerLines[0] || "")}</strong>
+    <div class="receipt-paper ${model.logo.show ? "" : "receipt-no-logo"} ${model.logo.mode === "B" ? "receipt-image-b" : ""} ${model.width === "80mm" ? "receipt-80" : ""}">
+      ${model.logo.show ? logoMarkup : ""}
+      ${model.headerLines[0] ? `<strong class="receipt-store-name">${escapeHtml(model.headerLines[0])}</strong>` : ""}
       ${model.headerLines.slice(1).map(line => `<small class="${line === lastHeaderLine && line === headerNote ? "receipt-note" : "receipt-address"}">${escapeHtml(line)}</small>`).join("")}
       <i></i>
-      <span class="receipt-date-row"><b>${escapeHtml(dateLine)}</b></span>
-      ${metaRows.map(row => `<span><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>`).join("")}
+      ${model.metaLines.map(row => {
+        if (row.type === "center") return `<span class="${row.role === "identity" ? "receipt-identity-row" : "receipt-date-row"}"><b>${escapeHtml(row.text)}</b></span>`;
+        if (row.type === "note") return `<span class="receipt-transaction-note"><b>Catatan:</b> ${escapeHtml(row.text)}</span>`;
+        return `<span${row.type === "pair" ? ' class="receipt-meta-pair"' : ""}><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>`;
+      }).join("")}
       <i></i>
-      ${model.items.map(item => `<span><b>${escapeHtml(item.label)}</b><b>${escapeHtml(item.amount)}</b></span>`).join("")}
+      ${model.items.map(item => `<span class="${item.detail ? "receipt-item-detail" : ""}"><b>${escapeHtml(item.label)}</b>${item.amount ? `<b>${escapeHtml(item.amount)}</b>` : ""}</span>`).join("")}
       ${model.totalLines.filter(row => !row.strong).map(row => row.label === "Total qty" ? `<span><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>` : "").join("")}
       <i></i>
       ${model.totalLines.map(row => row.strong ? `<strong class="receipt-total"><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></strong>` : row.label !== "Total qty" ? `<span><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>` : "").join("")}
@@ -8254,20 +8550,23 @@ function renderReceiptPaper(order = null) {
   `;
 }
 
-function printableReceiptHtml(order) {
+function printableReceiptHtml(order, model = null, title = "") {
   return `
     <!doctype html>
     <html>
       <head>
-        <title>Struk ${escapeHtml(displayOrderNumber(order?.number))}</title>
+        <title>${escapeHtml(title || `Struk ${displayOrderNumber(order?.number)}`)}</title>
         <style>
           body { margin: 0; padding: 12px; background: white; }
           .receipt-paper { width: 270px; display: grid; gap: 5px; color: #111827; font: 11px/1.35 "Courier New", monospace; text-align: center; }
           .receipt-paper.receipt-80 { width: 360px; }
           .receipt-paper span, .receipt-total { display: flex; justify-content: space-between; gap: 8px; text-align: left; }
-          .receipt-date-row { justify-content: center; text-align: center; }
+          .receipt-paper .receipt-date-row, .receipt-paper .receipt-identity-row { justify-content: center; text-align: center; }
+          .receipt-paper .receipt-identity-row { font-size: 1.5em; }
+          .receipt-paper .receipt-transaction-note { display: block; font-weight: 400; white-space: pre-wrap; overflow-wrap: anywhere; }
           .receipt-paper small { display: block; }
           .receipt-paper b, .receipt-paper strong { font-weight: 600; }
+          .receipt-paper .receipt-item-detail b { padding-left: 8px; font-weight: 400; white-space: pre-wrap; }
           .receipt-store-name { font-size: 15px; font-weight: 700; }
           .receipt-address { font-size: 12px; font-weight: 600; }
           .receipt-note { font-size: 12px; font-weight: 500; }
@@ -8280,7 +8579,7 @@ function printableReceiptHtml(order) {
           .receipt-paper.receipt-image-b em { border: 0; padding: 0; border-radius: 0; }
         </style>
       </head>
-      <body>${renderReceiptPaper(order)}</body>
+      <body>${model ? renderReceiptPrintModel(model, model.headerNote) : renderReceiptPaper(order)}</body>
     </html>
   `;
 }
@@ -8362,9 +8661,15 @@ function receiptPairText(label, value, width) {
 
 function receiptPlainText(order) {
   const model = receiptPrintModel(order);
+  return receiptPrintModelText(model);
+}
+
+function receiptPrintModelText(model) {
   const width = model.widthChars;
   const lines = [];
-  model.headerLines.forEach(line => lines.push(receiptCenterLine(line, width)));
+  model.headerLines.forEach(line => {
+    receiptWrapText(line, width).forEach(part => lines.push(receiptCenterLine(part, width)));
+  });
   lines.push(receiptSeparator(width));
   model.metaLines.forEach(line => {
     if (line.type === "center") {
@@ -8374,7 +8679,10 @@ function receiptPlainText(order) {
     lines.push(...receiptPairText(line.label, line.value, width));
   });
   lines.push(receiptSeparator(width));
-  model.items.forEach(item => lines.push(...receiptPairText(item.label, item.amount, width)));
+  model.items.forEach(item => {
+    if (!item.amount) lines.push(...receiptWrapText(item.label, width));
+    else lines.push(...receiptPairText(item.label, item.amount, width));
+  });
   model.totalLines.filter(line => line.label === "Total qty").forEach(line => lines.push(...receiptPairText(line.label, line.value, width)));
   lines.push(receiptSeparator(width));
   model.totalLines.filter(line => line.label !== "Total qty").forEach(line => lines.push(...receiptPairText(line.label, line.value, width)));
@@ -8386,20 +8694,50 @@ function receiptPlainText(order) {
   return lines.filter((line, index, list) => line || list[index - 1]).join("\n");
 }
 
-function printReceiptWithNativeBridge(order) {
+function printerSlotLabel(slot) {
+  return slot === "B" ? "Printer 2" : "Printer 1";
+}
+
+function receiptPrintProfile(kind) {
+  const saved = state.settings.receiptPrintProfiles?.[kind] || {};
+  return {
+    printerSlot: ["A", "B"].includes(saved.printerSlot) ? saved.printerSlot : (kind === "kitchen2" ? "B" : "A"),
+    printMode: saved.printMode || (state.settings.printerPrintMode === "text" ? "text" : "formatted"),
+    width: saved.width === "58mm" || saved.width === "80mm" ? saved.width : "",
+    storeName: String(saved.storeName || ""),
+    address: String(saved.address || ""),
+    phone: String(saved.phone || ""),
+    headerNote: String(saved.headerNote || ""),
+    footer: String(saved.footer || ""),
+    showLogo: saved.showLogo === true,
+    logoLength: Math.max(1, Math.min(32, Number(saved.logoLength || 12) || 12)),
+    bottomFeedLines: Math.max(0, Math.min(8, Number(saved.bottomFeedLines ?? 1) || 0)),
+    showTable: saved.showTable !== false,
+    showCustomer: saved.showCustomer !== false,
+    showNotes: saved.showNotes !== false,
+    showQuantity: saved.showQuantity === true
+  };
+}
+
+function printReceiptWithNativeBridge(order, profile = receiptPrintProfile("customer")) {
   const androidBridge = window.KasirinAndroid;
   const nativeBridge = window.KasirinNative;
   const printReceipt = androidBridge?.printReceipt || nativeBridge?.printReceipt;
   if (typeof printReceipt !== "function") return false;
+  const printer = devicePrinterSettings(profile.printerSlot === "B" ? state.settings.printerB : state.settings);
+  const printerDeviceId = printer.printerDeviceId;
+  const directSecondPrinter = profile.printerSlot === "B" && printer.printerConnection === "Bluetooth";
+  if (directSecondPrinter && !/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(printerDeviceId)) return false;
   const payload = {
     orderNumber: displayOrderNumber(order?.number || order?.id || "struk"),
-    html: printableReceiptHtml(order),
+    ...(!directSecondPrinter ? { html: printableReceiptHtml(order) } : {}),
     text: receiptPlainText(order),
     receipt: receiptPrintModel(order),
     width: state.settings?.receiptWidth || "58mm",
-    printerConnection: state.settings?.printerConnection || "Bluetooth",
-    printerDevice: state.settings?.printerDevice || "",
-    printerDeviceId: state.settings?.printerDeviceId || ""
+    printerConnection: printer.printerConnection,
+    printerPrintMode: profile.printMode === "text" ? "text" : "formatted",
+    printerDevice: printer.printerDevice,
+    ...(printerDeviceId ? { printerDeviceId } : {})
   };
   try {
     if (androidBridge?.printReceipt) androidBridge.printReceipt(JSON.stringify(payload));
@@ -8411,19 +8749,128 @@ function printReceiptWithNativeBridge(order) {
   }
 }
 
-function printReceiptOrder(order) {
+function printReceiptOrder(order, profile = receiptPrintProfile("customer")) {
   if (!order) return toast("Belum ada struk untuk dicetak.");
-  if (printReceiptWithNativeBridge(order)) {
+  if (profile.printerSlot === "B" && !state.settings.printerB) return toast("Atur Printer 2 di tab Printer terlebih dahulu.");
+  if (printReceiptWithNativeBridge(order, profile)) {
     toast("Menyiapkan struk untuk dicetak...");
     return;
   }
+  if (profile.printerSlot === "B" && state.settings.printerB.printerConnection === "Bluetooth") {
+    return toast("Periksa koneksi Printer 2 di APK POS atau pilih Dialog cetak sistem.");
+  }
+  if (printReceiptInBrowser(printableReceiptHtml(order))) {
+    toast(`Struk ${displayOrderNumber(order.number)} siap dicetak.`);
+  }
+}
+
+function printReceiptInBrowser(html) {
   const printWindow = window.open("", "_blank", "width=420,height=720");
-  if (!printWindow) return toast("Popup print diblokir browser.");
-  printWindow.document.write(printableReceiptHtml(order));
+  if (!printWindow) {
+    toast("Popup print diblokir browser.");
+    return false;
+  }
+  printWindow.document.write(html);
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
-  toast(`Struk ${displayOrderNumber(order.number)} siap dicetak.`);
+  return true;
+}
+
+function kitchenReceiptModel(order, kind, profile = receiptPrintProfile(kind)) {
+  const settings = state.settings;
+  const width = profile.width || settings.receiptWidth || "58mm";
+  const widthChars = receiptPrintWidth({ receiptWidth: width });
+  const items = order.items || order.cart || [];
+  const orderNumber = displayOrderNumber(order.number);
+  const service = String(order.type || "").trim();
+  const tableValue = String(order.serviceInfo ?? order.service_info ?? "").trim();
+  const table = profile.showTable && /^dine[\s_-]*in$/i.test(service) && !/^(?:-*|dine[\s_-]*in)$/i.test(tableValue)
+    ? tableValue
+    : "";
+  const customerValue = String(order.customer || "").trim();
+  const customer = profile.showCustomer && customerValue !== "-" ? customerValue : "";
+  const identity = [table || orderNumber, customer].filter(Boolean).join(" - ");
+  const orderNote = profile.showNotes ? orderCustomerNoteDisplay(order.note) : "";
+  return {
+    width, widthChars,
+    logo: {
+      show: profile.showLogo, dataUrl: settings.receiptLogoDataUrl || "",
+      text: settings.receiptLogoText || settings.receiptStoreName || "Pizzain",
+      chars: profile.logoLength, mode: settings.receiptImageMode || "A"
+    },
+    headerLines: [
+      profile.storeName, profile.address, profile.phone ? `Telp: ${profile.phone}` : "", profile.headerNote
+    ].filter(Boolean),
+    headerNote: profile.headerNote,
+    metaLines: [
+      ...receiptWrapText(identity, Math.floor(widthChars / 1.5)).map(text => ({ type: "center", role: "identity", text })),
+      { type: "pair", label: "Tanggal", value: receiptDateText(order.createdAt) },
+      ...(service ? [{ type: "pair", label: "Layanan", value: service }] : []),
+      ...(table && orderNumber !== "-" ? [{ type: "pair", label: "No. order", value: orderNumber }] : []),
+      ...(orderNote ? [{ type: "note", text: orderNote, label: "Catatan: " + orderNote, value: "" }] : [])
+    ],
+    items: items.flatMap(item => {
+      const details = [
+        ...(item.addons || []).map(addon => `+ ${Number(addon.qty || 1)}x ${addon.name || "Tambahan"}`),
+        profile.showNotes && item.note ? `Catatan: ${item.note}` : ""
+      ].filter(Boolean);
+      return [
+        { label: `${Number(item.qty || 0)}x ${item.name || "Item"}`, amount: "" },
+        ...details.map(label => ({ label, amount: "", detail: true }))
+      ];
+    }),
+    totalLines: profile.showQuantity ? [{ label: "Total qty", value: String(items.reduce((qty, item) => qty + Number(item.qty || 0), 0)) }] : [],
+    qrText: "", footer: profile.footer, bottomFeedLines: profile.bottomFeedLines
+  };
+}
+
+function kitchenReceiptHtml(text, title) {
+  return `<!doctype html><html lang="id"><head><meta charset="utf-8">
+    <title>${escapeHtml(title)}</title>
+    <style>body{margin:0;padding:8px}pre{margin:0;font:11px/1.4 monospace;white-space:pre-wrap;overflow-wrap:anywhere}</style>
+    </head><body><pre>${escapeHtml(text)}</pre></body></html>`;
+}
+
+function dispatchKitchenPrint(text, title, slot, model = null) {
+  if (slot !== "A" && slot !== "B") return false;
+  const saved = slot === "B" ? state.settings.printerB : state.settings;
+  if (!saved) return toast(`Atur ${printerSlotLabel(slot)} di Pengaturan Printer terlebih dahulu.`);
+  const printer = devicePrinterSettings(saved);
+  const android = window.KasirinAndroid;
+  const native = window.KasirinNative;
+  const hasBridge = typeof android?.printReceipt === "function" || typeof native?.printReceipt === "function";
+  const bluetooth = printer.printerConnection === "Bluetooth";
+  if (bluetooth && hasBridge && !/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(printer.printerDeviceId)) {
+    return toast(`Pindai dan pilih ${printerSlotLabel(slot)} di Pengaturan Printer.`);
+  }
+  if (bluetooth && !hasBridge && slot === "B") {
+    return toast("Untuk Printer 2, gunakan APK POS atau pilih Dialog cetak sistem di Pengaturan Printer.");
+  }
+  const printHtml = () => model ? printableReceiptHtml(null, model, title) : kitchenReceiptHtml(text, title);
+  if (!hasBridge) return printReceiptInBrowser(printHtml());
+
+  // Omitting HTML keeps a Bluetooth job tied to its explicit printer address.
+  const payload = {
+    orderNumber: title, text, printerPrintMode: model ? "formatted" : "text",
+    ...(model ? { receipt: model, width: model.width } : {}),
+    printerConnection: bluetooth ? "Bluetooth" : "System",
+    ...(bluetooth ? { printerDeviceId: printer.printerDeviceId } : { html: printHtml() })
+  };
+  try {
+    if (typeof android?.printReceipt === "function") android.printReceipt(JSON.stringify(payload));
+    else native.printReceipt(payload);
+    return true;
+  } catch (error) {
+    console.warn("Kitchen receipt print failed", error);
+    return toast(`Gagal menyiapkan cetak ke ${printerSlotLabel(slot)}.`);
+  }
+}
+
+function testPrinterSlot(slot) {
+  if (slot !== "A" && slot !== "B") return;
+  const title = `Tes cetak ${printerSlotLabel(slot)}`;
+  dispatchKitchenPrint(`PIZZAIN\n${title}\n${receiptDateText()}`, title, slot);
 }
 
 function orderDiscountAmount(subtotal) {
@@ -8834,10 +9281,14 @@ async function commitLimitedStockReservations(items, orderNumber, source = limit
   }
 }
 
-async function restoreLimitedStockCommit(orderNumber) {
+async function restoreLimitedStockCommit(orderNumber, intent = "") {
   if (!orderNumber || !canAttemptSupabaseSync()) return false;
   try {
-    const { data, error } = await supabaseClient.rpc("restore_limited_stock_commit", { p_order_number: orderNumber });
+    const explicitTakeawayRestore = /^T\d+$/i.test(orderNumber) && ["manual_delete", "submit_failed"].includes(intent);
+    const rpcName = explicitTakeawayRestore ? "restore_takeaway_stock_with_intent" : "restore_limited_stock_commit";
+    const payload = { p_order_number: orderNumber };
+    if (explicitTakeawayRestore) payload.p_intent = intent;
+    const { data, error } = await supabaseClient.rpc(rpcName, payload);
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
     return result?.restored === true;
@@ -9111,12 +9562,16 @@ function groupedOrderItems(order) {
     .map(([batch, items]) => ({ batch, label: orderBatchLabel(batch), items }));
 }
 
+function orderCustomerNoteDisplay(note) {
+  return String(note || "").split(/\s*(?:Kurir membayar harga produk di outlet|Pin lokasi\s*:|Patokan alamat\s*:|Jam pengambilan\s*:|Koordinat\s*:|Alamat (?:penerima|pengantaran)\s*:)/i)[0].trim();
+}
+
 function orderGroupNote(order, group) {
   const batchNote = (group?.items || [])
     .map(item => String(item.variantData?.orderBatchNote || "").trim())
     .find(Boolean);
-  if (batchNote) return batchNote;
-  return Number(group?.batch || 1) === 1 ? String(order?.note || "").trim() : "";
+  if (batchNote) return orderCustomerNoteDisplay(batchNote);
+  return Number(group?.batch || 1) === 1 ? orderCustomerNoteDisplay(order?.note) : "";
 }
 
 function selfOrderOpenTableOrder(table) {
@@ -9197,13 +9652,13 @@ function renderSelfOrderOpenTableDecision(order, table, choice) {
   return `
     <section class="self-order-open-table-card" aria-live="polite">
       <div class="self-order-open-table-head">
-        <span class="self-order-open-table-icon" aria-hidden="true"><i></i></span>
+        <span class="self-order-open-table-icon" aria-hidden="true">${selfOrderAsikIcon("history")}</span>
         <strong>Apakah ini pesanan anda sebelumnya ?</strong>
       </div>
       <div class="self-order-open-table-meta">
-        <span>Meja: <b>${escapeHtml(table || "A-1")}</b></span>
-        <span>Nama: <b>${customer ? escapeHtml(customer) : "-"}</b></span>
-        <span>Status: <b>${escapeHtml(order?.paymentStatus || "Belum dibayar")}</b></span>
+        <span><span class="self-order-open-table-label">Meja</span><b>${escapeHtml(table || "A-1")}</b></span>
+        <span><span class="self-order-open-table-label">Nama</span><b>${customer ? escapeHtml(customer) : "-"}</b></span>
+        <span><span class="self-order-open-table-label">Status</span><b class="self-order-open-table-status">${escapeHtml(order?.paymentStatus || "Belum dibayar")}</b></span>
       </div>
       <div class="self-order-open-table-history">
         ${renderSelfOrderOpenTableHistory(order)}
@@ -9288,18 +9743,20 @@ function renderCartSuccess() {
   if (!result) {
     return `<div class="success-card"><strong>Belum ada hasil</strong><p>Proses atau simpan pesanan terlebih dahulu.</p><button class="btn green" onclick="setCartStep('items')">Kembali</button></div>`;
   }
+  const message = result.paid && result.message === "Pesanan belum bayar sudah dilunasi. Struk kasir siap dicetak."
+    ? "pesanan sudah lunas, struk kasir siap dicetak" : result.message;
   return `
     <div class="success-card">
-      <div class="success-icon">&#10003;</div>
+      <div class="success-icon pos-success-asik" aria-hidden="true">${selfOrderAsikIcon("success")}</div>
       <strong>${escapeHtml(result.title)}</strong>
-      <p>${escapeHtml(result.message)}</p>
+      <p>${escapeHtml(message)}</p>
       <div class="success-meta">
         <span>No. Pesanan</span><b>${escapeHtml(displayOrderNumber(result.number))}</b>
         <span>Total</span><b>${money(result.total)}</b>
         ${result.paid ? `<span>Uang diterima</span><b>${money(result.receivedAmount || 0)}</b><span>Kembalian</span><b>${money(result.changeAmount || 0)}</b>` : `<span>Status bayar</span><b>Bayar nanti</b>`}
       </div>
       ${result.paid ? `<button class="btn receipt-success-btn" onclick="printLastReceipt()">Print struk</button>` : ""}
-      <button class="btn green" onclick="startNewSale()">Transaksi Baru</button>
+      <button class="btn green new-sale-success-btn" onclick="startNewSale()">Transaksi Baru</button>
     </div>
   `;
 }
@@ -9726,18 +10183,16 @@ function renderSelfOrderUpsellCard(context = "cart") {
   const products = selfOrderUpsellProducts(context, 2);
   if (!products.length) return "";
   const isPayment = context === "payment";
-  const title = isPayment ? "Rekomendasi sebelum checkout" : "Lengkapi pesananmu";
+  const title = isPayment ? "Rekomendasi Best Seller" : "Lengkapi pesananmu";
   const subtitle = isPayment ? "Tambahkan favorit lain sebelum pesanan dikirim" : "Pilihan favorit untuk tambah ke pesanan";
-  const badge = isPayment ? "Paling sering dipilih" : "Rekomendasi";
   return `
     <section class="self-order-upsell-card ${isPayment ? "payment" : "cart"}">
       <div class="self-order-upsell-head">
-        <span class="self-order-upsell-icon" aria-hidden="true">${navIcon("sparkles")}</span>
+        <span class="self-order-upsell-icon" aria-hidden="true">${selfOrderAsikIcon("recommend")}</span>
         <div>
           <h4>${escapeHtml(title)}</h4>
-          <p>${escapeHtml(subtitle)}</p>
+          ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
         </div>
-        <b>${escapeHtml(badge)}</b>
       </div>
       <div class="self-order-upsell-list">
         ${products.map(entry => `
@@ -9745,7 +10200,7 @@ function renderSelfOrderUpsellCard(context = "cart") {
             <span class="self-order-upsell-media">${productImageOrToken(entry.product, "self-order-upsell-img", 240)}</span>
             <strong>${escapeHtml(entry.name)}</strong>
             <span class="self-order-upsell-price">+ ${entry.priceLabel}</span>
-            <button type="button" onclick="selfOrderAddUpsellProduct('${escapeHtml(entry.key)}', '${escapeHtml(context)}')" aria-label="Tambah ${escapeHtml(entry.name)}">+</button>
+            <button type="button" onclick="selfOrderAddUpsellProduct('${escapeHtml(entry.key)}', '${escapeHtml(context)}')" aria-label="Tambah ${escapeHtml(entry.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
           </article>
         `).join("")}
       </div>
@@ -9758,7 +10213,7 @@ async function selfOrderAddUpsellProduct(entryKey, context = "cart") {
   const product = entry?.product;
   if (!product) return toast("Produk rekomendasi tidak tersedia.");
   const fromPayment = context === "payment";
-  if (!entry.variantKey && selfOrderVariantGroups(product).length) {
+  if (selfOrderConfiguredCrusts(product).length || (!entry.variantKey && selfOrderVariantGroups(product).length)) {
     selfOrderOpenProduct(product.id);
     return;
   }
@@ -9813,7 +10268,7 @@ function selfOrderSetCategory(category) {
   sessionStorage.removeItem("self_order_product_id");
   const catalog = document.querySelector("[data-self-order-catalog]");
   if (catalog) {
-    catalog.innerHTML = renderSelfOrderCatalog();
+    replaceSelfOrderMarkup(catalog, renderSelfOrderCatalog());
     restoreSelfOrderCategoryScroll(true);
     return;
   }
@@ -9912,7 +10367,7 @@ function selfOrderOpenProduct(productId) {
   rememberSelfOrderMenuScroll(productId);
   sessionStorage.setItem("self_order_product_id", productId);
   sessionStorage.setItem("self_order_step", "detail");
-  sessionStorage.setItem("self_order_detail_qty", String(selfOrderCartProductQty(product) || 1));
+  sessionStorage.setItem("self_order_detail_qty", String(selfOrderConfiguredCrusts(product).length ? 1 : selfOrderCartProductQty(product) || 1));
   sessionStorage.removeItem("self_order_item_note");
   pushSelfOrderHistory("detail");
   render();
@@ -9952,6 +10407,35 @@ function selfOrderAvailableAddons(product) {
   const allowedIds = Array.isArray(product?.allowedAddonIds) ? product.allowedAddonIds : [];
   if (!allowedIds.length) return [];
   return state.addons.filter(addon => addon.active !== false && !addon.soldOut && allowedIds.includes(addon.id));
+}
+
+function selfOrderConfiguredCrusts(product) {
+  const allowedIds = product?.allowedAddonIds || [];
+  return state.addons.filter(addon => addon.active !== false && allowedIds.includes(addon.id)
+    && addonSelectionType(addon) === "crust");
+}
+
+function renderSelfOrderCrustDialog(product, crusts) {
+  return `
+    <dialog id="selfOrderCrustDialog" class="self-order-crust-dialog" aria-labelledby="selfOrderCrustTitle">
+      <form onsubmit="event.preventDefault(); selfOrderAddProduct('${escapeHtml(product.id)}', this)">
+        <header class="self-order-crust-header">
+          <h3 id="selfOrderCrustTitle">Pilih pinggiran pizza (Crust)</h3>
+          <p>Pilih satu untuk melanjutkan.</p>
+        </header>
+        <fieldset onchange="this.form.querySelector('button[type=submit]').disabled = false">
+          <legend class="sr-only">Pilihan pinggiran</legend>
+          <label><input type="radio" name="crust" value="" required /> <span>Pinggiran standar</span><strong>Tanpa biaya</strong></label>
+          ${crusts.filter(addon => !addon.soldOut).map(addon => `
+            <label><input type="radio" name="crust" value="${escapeHtml(addon.id)}" required /> <span>${escapeHtml(selfOrderAddonDisplayName(addon))}</span><strong>+ ${money(addon.price)}</strong></label>
+          `).join("")}
+        </fieldset>
+        <div class="self-order-crust-actions">
+          <button class="self-order-secondary" type="button" onclick="this.closest('dialog').close()">Batal</button>
+          <button class="self-order-primary" type="submit" disabled>Tambahkan</button>
+        </div>
+      </form>
+    </dialog>`;
 }
 
 function selfOrderVariantKey(product, option) {
@@ -10058,7 +10542,8 @@ function selfOrderDetailCartState(product, options = {}) {
   const { selections, missingRequired } = readSelfOrderVariantSelections(product);
   const note = readSelfOrderItemNote();
   const addons = options.skipAddons ? [] : readSelfOrderSelectedAddons(product);
-  const line = missingRequired ? null : selfOrderCart.find(item => selfOrderDetailCartLineMatches(item, product, selections, addons, note));
+  const line = missingRequired || selfOrderConfiguredCrusts(product).length ? null
+    : selfOrderCart.find(item => selfOrderDetailCartLineMatches(item, product, selections, addons, note));
   return { selections, missingRequired, addons, line, note };
 }
 
@@ -10172,7 +10657,7 @@ function selfOrderUpdateDetailState(productId) {
 }
 
 async function selfOrderUpsertDetailCartItem(product, detailState) {
-  const qty = selfOrderDetailQty();
+  const qty = detailState.qty ?? selfOrderDetailQty();
   if (qty <= 0) {
     if (detailState.line) selfOrderRemoveDetailCartLine(detailState.line);
     saveSelfOrderCart();
@@ -10212,13 +10697,43 @@ async function selfOrderUpsertDetailCartItem(product, detailState) {
   return true;
 }
 
-async function selfOrderAddProduct(productId) {
+async function selfOrderAddProduct(productId, crustForm = null) {
   const product = selfOrderProduct(productId);
   if (!product || product.soldOut) return toast("Produk sedang tidak tersedia.");
   const detailState = selfOrderDetailCartState(product);
   const { selections, missingRequired } = detailState;
   if (missingRequired) return toast("Pilih varian terlebih dahulu.");
-  if (!await selfOrderUpsertDetailCartItem(product, detailState)) return;
+  const crusts = selfOrderConfiguredCrusts(product);
+  if (crusts.length && selfOrderDetailQty() > 0) {
+    const dialog = document.getElementById("selfOrderCrustDialog");
+    if (!crustForm) {
+      if (dialog && !dialog.open) {
+        dialog.querySelector("form").reset();
+        dialog.querySelector('button[type="submit"]').disabled = true;
+        dialog.showModal();
+      }
+      return;
+    }
+    if (!dialog?.open || crustForm.closest("dialog") !== dialog) return;
+    const choice = crustForm.querySelector('input[name="crust"]:checked');
+    if (!choice) return;
+    const crust = choice.value ? crusts.find(addon => addon.id === choice.value && !addon.soldOut) : null;
+    dialog.close();
+    if (choice.value && !crust) return toast("Pinggiran ini sedang tidak tersedia. Pilih yang lain.");
+    if (crust) {
+      detailState.addons.push({ id: crust.id, name: crust.name, price: Number(crust.price || 0), cost: Number(crust.cost || 0), qty: 1 });
+    }
+    detailState.line = selfOrderCart.find(item => selfOrderDetailCartLineMatches(item, product, selections, detailState.addons, detailState.note));
+    detailState.qty = selfOrderDetailQty() + (Number(detailState.line?.qty) || 0);
+  }
+  const submitButton = document.querySelector("[data-self-order-add-btn]");
+  if (submitButton?.disabled) return;
+  if (submitButton) submitButton.disabled = true;
+  try {
+    if (!await selfOrderUpsertDetailCartItem(product, detailState)) return;
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
   sessionStorage.setItem("self_order_step", "menu");
   sessionStorage.removeItem("self_order_product_id");
   sessionStorage.setItem("self_order_detail_qty", "1");
@@ -10310,6 +10825,8 @@ async function selfOrderCreateOrder() {
   if (selfOrderSubmitting) return;
   if (!state.cashSession.open) return toast("Kas belum dibuka. Minta bantuan staff.");
   if (!selfOrderCart.length) return toast("Keranjang masih kosong.");
+  if (await window.FresinOnlineHours?.check("dinein") === false) return;
+  if (selfOrderSubmitting) return;
   selfOrderSubmitError = "";
   const customerInput = document.getElementById("selfOrderCustomer");
   const customer = String(customerInput?.value || sessionStorage.getItem("self_order_customer") || "").trim();
@@ -10447,6 +10964,7 @@ function renderSelfOrder() {
     : step === "table-check" ? renderSelfOrderTableCheck()
     : step === "table-decision" ? renderSelfOrderTableDecision()
     : step === "payment" ? renderSelfOrderPayment()
+    : step === "receipt" ? window.SOTakeaway.renderReceiptPage()
     : step === "success" ? renderSelfOrderSuccess()
     : renderSelfOrderMenu();
   const navStep = selfOrderNavStep(step);
@@ -10460,16 +10978,30 @@ function renderSelfOrder() {
   `;
 }
 
+function selfOrderBranding() {
+  const settings = state.settings || {};
+  const configuredName = String(settings.selfOrderAppName || settings.receiptStoreName || "").trim();
+  const fallbackImage = "/Customer%20Gateway/assets/pizzain-logo.jpg";
+  const configuredImage = String(settings.selfOrderProfileImageDataUrl || settings.receiptLogoDataUrl || "").trim();
+  return {
+    name: configuredName && !/^kasirin(?:!| cafe)?$/i.test(configuredName) ? configuredName : "Pizzain",
+    outlet: String(settings.selfOrderOutletName || state.outlet || "Outlet Utama").trim(),
+    image: configuredImage || fallbackImage,
+    fallbackImage
+  };
+}
+
 function renderSelfOrderTopbar() {
   syncSelfOrderTableFromUrl();
   const table = sessionStorage.getItem("self_order_table") || "A-1";
-  const appName = state.settings.selfOrderAppName || state.settings.receiptStoreName || "Kasirin Cafe";
-  const outletName = state.settings.selfOrderOutletName || state.outlet || "Outlet Utama";
-  const profileImage = String(state.settings.selfOrderProfileImageDataUrl || state.settings.receiptLogoDataUrl || "assets/pizzain-logo.jpg").trim();
+  const branding = selfOrderBranding();
+  const appName = branding.name;
+  const outletName = branding.outlet;
+  const profileImage = branding.image;
   return `
     <header class="self-order-topbar">
       <button type="button" class="self-order-icon-btn ${profileImage ? "has-photo" : ""}" onclick="selfOrderShowMenu()" aria-label="Menu">
-        ${profileImage ? mediaImageTag(profileImage, "Foto profil self order", "", 240) : navIcon("selforder")}
+        ${profileImage ? mediaImageTag(profileImage, "Foto profil self order", "", 240, "eager", branding.fallbackImage) : navIcon("selforder")}
       </button>
       <div>
         <strong>${escapeHtml(appName)}</strong>
@@ -10539,15 +11071,22 @@ function renderSelfOrderCatalog() {
   const category = selfOrderActiveCategory();
   const activeProducts = stableProducts(state.products).filter(product => selfOrderProductCanDisplay(product));
   if (!activeProducts.length && selfOrderCatalogLoading()) return selfOrderCatalogLoadingHtml();
-  const visibleCategories = productCategories().filter(item => activeProducts.some(product => product.category === item));
+  const categoryOrder = [/\bregul(?:ar|er)\b/i, /\blarge\b/i, /\bcrispy\b/i, /\bvolcano\b/i, /\bspaghett[yi]\b/i, /\bbeverage\b/i];
+  const categoryRank = name => {
+    const index = categoryOrder.findIndex(pattern => pattern.test(name));
+    return index < 0 ? categoryOrder.length : index;
+  };
+  const visibleCategories = productCategories()
+    .filter(item => activeProducts.some(product => product.category === item))
+    .sort((left, right) => categoryRank(left) - categoryRank(right));
   const categories = ["Semua", ...visibleCategories];
   const safeCategory = category === "Semua" || visibleCategories.includes(category) ? category : "Semua";
   const categoryProducts = activeProducts.filter(product => safeCategory === "Semua" || product.category === safeCategory);
   return `
     <section class="self-order-categories" aria-label="Kategori produk" onscroll="rememberSelfOrderCategoryScroll(this)">
       ${categories.map(item => `
-        <button class="${item === safeCategory ? "active" : ""}" type="button" aria-pressed="${item === safeCategory}" onclick='selfOrderSetCategory(${escapeHtml(JSON.stringify(item))})'>
-          ${escapeHtml(item)}
+        <button class="${IS_SELF_ORDER_APP && window.FresinGateway?.menuVisualsEnabled() ? "fresin-category-chip " : ""}${item === safeCategory ? "active" : ""}" type="button" onclick='selfOrderSetCategory(${JSON.stringify(item)})'>
+          ${IS_SELF_ORDER_APP && window.FresinGateway?.categoryVisual ? window.FresinGateway.categoryVisual(item, activeProducts) : ""}<span class="self-order-category-label">${escapeHtml(item)}</span>
         </button>
       `).join("")}
     </section>
@@ -10562,7 +11101,7 @@ function renderSelfOrderCategorySection(category, products, showAllButton) {
     <section class="self-order-menu-section">
       <div class="self-order-menu-section-head">
         <h3>Pilihan ${escapeHtml(category)}</h3>
-        ${showAllButton ? `<button type="button" onclick='selfOrderSetCategory(${escapeHtml(JSON.stringify(category))})'>Lihat semua</button>` : ""}
+        ${showAllButton ? `<button type="button" onclick='selfOrderSetCategory(${JSON.stringify(category)})'>Lihat semua</button>` : ""}
       </div>
       <div class="self-order-grid">
         ${products.map(renderSelfOrderProductCard).join("") || empty("Belum ada produk aktif untuk kategori ini.")}
@@ -10755,7 +11294,8 @@ function selfOrderOpenPromoTarget(index = 0) {
 function renderSelfOrderDetail() {
   const product = selfOrderProduct(sessionStorage.getItem("self_order_product_id"));
   if (!product) return renderSelfOrderMenu();
-  const addons = selfOrderAvailableAddons(product);
+  const addons = selfOrderAvailableAddons(product).filter(addon => addonSelectionType(addon) === "extra");
+  const crusts = selfOrderConfiguredCrusts(product);
   const variantGroups = selfOrderVariantGroups(product);
   const readyToAdd = selfOrderDetailReadyToAdd(product);
   const detailState = selfOrderDetailCartState(product);
@@ -10767,6 +11307,7 @@ function renderSelfOrderDetail() {
         <div class="self-order-detail-media">${productImageOrToken(product, "self-order-detail-img", 420)}</div>
         <form class="self-order-detail-panel" novalidate onsubmit="event.preventDefault(); selfOrderAddProduct('${product.id}')">
           <h3>${escapeHtml(product.name)}</h3>
+          ${String(product.description || "").trim() ? `<p class="self-order-product-description">${escapeHtml(product.description)}</p>` : ""}
           <strong>${productDisplayPrice(product)}</strong>
           ${variantGroups.length ? renderSelfOrderVariantGroups(product, variantGroups) : ""}
           ${addons.length ? `
@@ -10792,6 +11333,7 @@ function renderSelfOrderDetail() {
           </div>
         </form>
       </section>
+      ${crusts.length ? renderSelfOrderCrustDialog(product, crusts) : ""}
     </main>
   `;
 }
@@ -10818,7 +11360,7 @@ function renderSelfOrderAddonControl(product, addon) {
   const qty = selfOrderAddonQty(product, addon);
   return `
     <label class="self-order-addon ${qty > 0 ? "active" : ""}">
-      <span><b>${escapeHtml(addon.name)}</b><small>+ ${money(addon.price)}</small></span>
+      <span><b>${escapeHtml(selfOrderAddonDisplayName(addon))}</b><small>+ ${money(addon.price)}</small></span>
       <div class="self-order-addon-control">
         <input type="checkbox" value="${escapeHtml(addon.id)}" data-self-addon onchange="selfOrderToggleAddon('${escapeHtml(product.id)}', '${escapeHtml(addon.id)}')" ${qty > 0 ? "checked" : ""} />
         <div class="self-order-addon-stepper" onclick="event.preventDefault(); event.stopPropagation()">
@@ -10885,18 +11427,19 @@ function selfOrderLabelCase(value) {
 }
 
 function renderSelfOrderCart() {
+  if (typeof window !== "undefined" && window.FresinGateway?.renderCart) return window.FresinGateway.renderCart();
   const subtotal = selfOrderSubtotal();
   return `
     <main class="self-order-main cart">
-      <div class="self-order-section-head">
-        <div><span>Keranjang</span><h3>${selfOrderItemsTotal()} item</h3></div>
+      <div class="self-order-section-head self-order-cart-head">
+        <h3 class="self-order-cart-title">Pesanan <span class="self-order-cart-count">${selfOrderItemsTotal()} item</span></h3>
       </div>
       <section class="self-order-cart-list">
         ${selfOrderCart.map(item => `
           <article class="self-order-cart-item">
             <div>
               <strong>${escapeHtml(item.name)}</strong>
-              ${(item.addons || []).length ? `<small>${item.addons.map(addon => `+ ${escapeHtml(addon.name)} ${Number(addon.qty || 0)}x`).join(" ")}</small>` : ""}
+              ${(item.addons || []).length ? `<small>${item.addons.map(addon => `+ ${escapeHtml(selfOrderAddonDisplayName(addon))} ${Number(addon.qty || 0)}x`).join(" ")}</small>` : ""}
               ${orderItemNoteHtml(item, "self-order-cart-item-note")}
               <b>${money(cartItemTotal(item))}</b>
             </div>
@@ -10906,7 +11449,7 @@ function renderSelfOrderCart() {
                 <span>${Number(item.qty || 0)}</span>
                 <button type="button" onclick="selfOrderChangeQty('${item.lineId}', 1)">+</button>
               </div>
-              <button type="button" class="danger" onclick="selfOrderRemoveItem('${item.lineId}')" aria-label="Hapus">x</button>
+              <button type="button" class="danger" onclick="selfOrderRemoveItem('${item.lineId}')" aria-label="Hapus"><svg class="self-order-remove-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
             </div>
           </article>
         `).join("") || empty("Keranjang masih kosong.")}
@@ -10961,18 +11504,20 @@ function renderSelfOrderPayment() {
   const submitLabel = selfOrderSubmitting
     ? `<span class="self-order-btn-spinner" aria-hidden="true"></span><span>Mengirim pesanan</span>`
     : "Selesaikan Pesanan";
+  const checkoutUi = typeof window !== "undefined" ? window.FresinGateway : null;
   return `
-    <main class="self-order-main payment">
-      <div class="self-order-section-head">
-        <div><span>Pembayaran</span><h3>Total ${money(selfOrderSubtotal())}</h3></div>
-      </div>
+    <main class="self-order-main payment self-order-table-payment ${checkoutUi?.checkoutItems ? "fresin-unified-checkout" : ""}">
+      ${checkoutUi?.checkoutItems ? "" : `<div class="self-order-section-head self-order-payment-head">
+        <span>Pembayaran</span><h3>${money(selfOrderSubtotal())}</h3>
+      </div>`}
       <section class="self-order-payment-shell">
         <div class="self-order-checkout">
-          <label class="self-order-customer-field ${isCustomerLocked ? "self-order-customer-lock-field" : ""}"><span>Nama</span><input id="selfOrderCustomer" value="${escapeHtml(customer)}" placeholder="Wajib" required aria-required="true" aria-describedby="selfOrderCustomerError" ${customerInputAttrs} /><small id="selfOrderCustomerError" class="self-order-customer-error" role="alert" hidden>Nama wajib diisi.</small></label>
-          <label class="wide"><span>Catatan</span><textarea id="selfOrderCheckoutNote" placeholder="Opsional" oninput="sessionStorage.setItem('self_order_checkout_note', this.value)">${escapeHtml(note)}</textarea></label>
+          ${checkoutUi?.checkoutServiceHeader?.() || ""}
+          <label class="self-order-customer-field ${isCustomerLocked ? "self-order-customer-lock-field" : ""}"><span class="self-order-field-label">Nama</span><input id="selfOrderCustomer" value="${escapeHtml(customer)}" placeholder="Nama pemesan" required aria-required="true" aria-describedby="selfOrderCustomerError" ${customerInputAttrs} /><small id="selfOrderCustomerError" class="self-order-customer-error" role="alert" hidden>Nama wajib diisi.</small></label>
+          <label class="wide"><span class="self-order-field-label">Catatan</span><textarea id="selfOrderCheckoutNote" placeholder="Catatan pesanan (opsional)" rows="2" oninput="sessionStorage.setItem('self_order_checkout_note', this.value)">${escapeHtml(note)}</textarea></label>
         </div>
       </section>
-      ${renderSelfOrderUpsellCard("payment")}
+      ${checkoutUi?.checkoutItems ? checkoutUi.checkoutItems() + checkoutUi.checkoutTotals() : renderSelfOrderUpsellCard("payment")}
       <button class="self-order-primary self-order-finish" type="button" onclick="selfOrderCreateOrder()" ${selfOrderSubmitting ? `disabled aria-busy="true"` : ""}>${submitLabel}</button>
       ${selfOrderSubmitError ? `<p class="self-order-submit-error" role="alert">${escapeHtml(selfOrderSubmitError)}</p>` : ""}
     </main>
@@ -10988,24 +11533,31 @@ function renderSelfOrderSuccess() {
   const moveInline = selfOrderMoveTableInlineVisible() && canMove;
   const currentTable = liveOrder?.serviceInfo || order?.table || "A-1";
   const orderCreatedAt = liveOrder?.createdAt || order?.createdAt || "";
+  const successHero = window.SOTakeaway?.renderHero?.({
+    title: "Pesanan diterima",
+    note: `Pesananmu akan diantar ke meja ${currentTable}.`,
+    tone: "accepted"
+  }) || `<div class="self-order-success-mark" aria-hidden="true">✓</div><h2>Pesanan diterima</h2>`;
   return `
-    <main class="self-order-main success">
-      <section class="self-order-success-card">
-        <div class="self-order-success-mark" aria-hidden="true">✓</div>
-        <h2>Pesanan diterima</h2>
-        <p class="self-order-success-warning">Mohon Tidak Pindah Meja</p>
-        <p class="self-order-success-warning-hint">(klik tombol dibawah jika pindah meja)</p>
-        <div class="self-order-success-detail">
-          <span><b>Nomor meja</b><strong>${escapeHtml(order?.table || "A-1")}</strong></span>
-          <span><b>Nomor order</b><strong>${escapeHtml(displayOrderNumber(order?.number || "-"))}</strong></span>
-          <span><b>Waktu order</b><strong>${escapeHtml(orderCreatedAt ? timeOnly(orderCreatedAt) : "-")}</strong></span>
-          <span><b>Nominal</b><strong>${money(order?.checkoutTotal ?? order?.total ?? 0)}</strong></span>
-          <span><b>Status bayar</b><strong>Bayar di Kasir saat pulang</strong></span>
-          <span><b>Nama pelanggan</b><strong>${customer ? escapeHtml(customer) : "-"}</strong></span>
+    <main class="self-order-main success so-takeaway-success fresin-so-success">
+      <section class="self-order-success-card so-takeaway-status-card">
+        ${successHero}
+        <div class="fresin-so-table-notice">
+          <span class="fresin-so-table-notice-icon" aria-hidden="true">${selfOrderAsikIcon("table")}</span>
+          <div><p class="self-order-success-warning">Mohon Tidak Pindah Meja</p>
+          <p class="self-order-success-warning-hint">(klik tombol dibawah jika pindah meja)</p></div>
         </div>
-        <p>Pesanan akan diproses ±20 menit. Untuk tambah pesanan, scan ulang QR Code atau klik tombol di bawah. Terima kasih!</p>
+        <div class="self-order-success-detail so-takeaway-detail-card">
+          <span><b>Nomor meja</b><strong class="so-takeaway-number-inline">${escapeHtml(currentTable)}</strong></span>
+          <span><b>Nomor order</b><strong class="so-takeaway-detail-copy">${escapeHtml(displayOrderNumber(order?.number || "-"))}</strong></span>
+          <span><b>Waktu order</b><strong class="so-takeaway-detail-copy">${escapeHtml(orderCreatedAt ? timeOnly(orderCreatedAt) : "-")}</strong></span>
+          <span class="so-takeaway-total-row"><b>Nominal</b><strong>${money(order?.checkoutTotal ?? order?.total ?? 0)}</strong></span>
+          <span><b>Status bayar</b><strong class="so-takeaway-payment-copy">Bayar di Kasir saat pulang</strong></span>
+          <span><b>Nama pelanggan</b><strong class="so-takeaway-detail-copy">${customer ? escapeHtml(customer) : "-"}</strong></span>
+        </div>
+        <p class="fresin-so-order-hint">Pesanan akan diproses ±20 menit. Untuk tambah pesanan, scan ulang QR Code atau klik tombol di bawah. Terima kasih!</p>
         <div class="self-order-success-actions">
-          <button class="self-order-primary" type="button" onclick="selfOrderShowMenu()">Pesan Lagi</button>
+          ${window.SOTakeaway.renderSuccessActions("selfOrderShowMenu()")}
           ${moveInline ? renderSelfOrderSuccessMoveInline(currentTable) : ""}
           <button class="self-order-secondary" type="button" ${moveInline ? "data-move-table-submit" : ""} onclick="${moveInline && liveOrder ? `confirmMoveOrderTable('${liveOrder.id}', 'selforder')` : "openSelfOrderMoveTableDialog()"}" ${hasOrderReference ? "" : "disabled"}>${moveInline ? "Konfirmasi Pindah Meja" : "Pindah Meja"}</button>
         </div>
@@ -11108,29 +11660,31 @@ function renderSelfOrderBottomNav(step) {
   `;
 }
 
+function selfOrderAsikIcon(kind) {
+  const art = {
+    history: `<path d="M16 12h24l8 8v31l-5-3-5 3-5-3-5 3-5-3-7 3V12Z" fill="#fffaf0"/><path d="M40 12v9h8M23 25h15M23 32h10M23 39h8"/><circle cx="46" cy="43" r="12" fill="#e9f0df" stroke="#789555"/><path d="M46 36v8l5 3" stroke="#789555"/><path d="m10 17 2 3 4 1-4 1-2 4-1-4-4-1 4-1 1-3Z" fill="#e9bc64" stroke="none"/>`,
+    menu: `<path d="M13 12h16c5 0 7 2 7 5v36H16a5 5 0 0 1-5-5V17a5 5 0 0 1 2-5Z" fill="#fff8e9"/><path d="M36 17c0-3 3-5 7-5h10v36H42c-4 0-6 2-6 5V17Z" fill="#efd5a5"/><path d="M20 22h9M20 29h9M20 36h7M43 23h5M43 30h5M36 19v33"/><path d="M19 12v8l4-3 4 3v-8" fill="#e6b76b"/>`,
+    cart: `<path d="M11 16h7l6 29h26l6-22H20" fill="#fff8e9"/><path d="M24 30h28l-4 13H27Z" fill="#efd5a5"/><path d="M31 29v10M41 29v10"/><circle cx="29" cy="52" r="4" fill="#e5b96e"/><circle cx="47" cy="52" r="4" fill="#e5b96e"/><path d="M29 23v-9h16v9" fill="#e9f0df"/><path d="m34 18 3 3 5-6" stroke="#708c4c"/>`,
+    payment: `<path d="m15 24 31-12 4 17" fill="#fff5dc"/><path d="M12 23h37a5 5 0 0 1 5 5v23H14a5 5 0 0 1-5-5V28a5 5 0 0 1 3-5Z" fill="#e6bf80"/><path d="M43 32h13v12H43a6 6 0 0 1 0-12Z" fill="#fff8e9"/><circle cx="46" cy="38" r="1.6" fill="#aa7b3b"/><path d="M17 30h16" stroke="#fff4de"/><circle cx="47" cy="16" r="8" fill="#f5d58e"/><path d="M47 12v8m-3-6h5m-5 4h5"/>`,
+    table: `<ellipse cx="32" cy="27" rx="19" ry="7" fill="#fff8e9"/><path d="M32 34v18m-9 0h18M8 30v14h11m-11-5v13m11-8v8M56 30v14H45m11-5v13m-11-8v8"/><path d="M27 20v-7h10v7" fill="#efd5a5"/>`,
+    success: `<circle cx="30" cy="31" r="27" fill="#fff1d8" stroke="none"/><path d="M19 12h21l8 8v31H19V12Z" fill="#fffaf0"/><path d="M40 12v9h8M25 28h14M25 34h11M25 40h7"/><circle cx="47" cy="47" r="12" fill="#e9f2df" stroke="#718e4d"/><path d="m41 47 4 4 8-9" stroke="#4f7c41" stroke-width="2.7"/>`,
+    recommend: `<circle cx="29" cy="34" r="20" fill="#efd5a5"/><circle cx="29" cy="34" r="14" fill="#fff8e9"/><circle cx="29" cy="34" r="5" fill="#d2a264"/><path d="m17 27 3 1m17 10 3-1m-22 5 3-1m4-21 1 3m8 20 1 3"/><path d="m47 9 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z" fill="#e9bc64"/>`
+  };
+  return `<svg class="self-order-asik-icon" viewBox="0 0 64 64" fill="none" aria-hidden="true"><g stroke="#a6783d" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${art[kind] || art.menu}</g></svg>`;
+}
+
 function selfOrderTabIcon(id) {
   const count = selfOrderItemsTotal();
-  if (id === "cart") {
-    return `
-      <span class="self-order-nav-icon cart-icon" aria-hidden="true">
-        <svg viewBox="0 0 48 48"><path d="M9 12h5l4 22h20l4-16H17"/><circle cx="20" cy="40" r="2"/><circle cx="36" cy="40" r="2"/></svg>
-        ${count ? `<em>${count}</em>` : ""}
-      </span>
-    `;
-  }
-  if (id === "payment") {
-    return `
-      <span class="self-order-nav-icon payment-icon" aria-hidden="true">
-        <svg viewBox="0 0 48 48"><path d="M11 17h28a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H11a4 4 0 0 1-4-4V21a4 4 0 0 1 4-4Z"/><path d="M13 17l23-8 2 8"/><path d="M35 28h8"/><circle cx="35" cy="28" r="2"/></svg>
-        <i></i>
-      </span>
-    `;
-  }
-  return `
-    <span class="self-order-nav-icon menu-icon" aria-hidden="true">
-      <svg viewBox="0 0 48 48"><path d="M15 16h18M15 24h18M15 32h18"/><circle cx="10" cy="16" r="2"/><circle cx="10" cy="24" r="2"/><circle cx="10" cy="32" r="2"/></svg>
-    </span>
-  `;
+  const kind = id === "cart" ? "cart" : id === "payment" ? "payment" : "menu";
+  const paths = {
+    menu: '<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    cart: '<path d="M3 4h2l3 12h10l3-9H6M9 11h9"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/>',
+    payment: '<path d="M5 7V5l12-2v4M5 7h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M16 12h5v5h-5a2.5 2.5 0 0 1 0-5Z"/>'
+  };
+  return `<span class="self-order-nav-icon ${kind}-icon" aria-hidden="true">
+    <svg class="self-order-line-icon" viewBox="0 0 24 24" fill="none">${paths[kind]}</svg>
+    ${kind === "cart" && count ? `<em>${count}</em>` : ""}
+  </span>`;
 }
 
 function posProductSearchText(product) {
@@ -11197,8 +11751,9 @@ function posProductMatchesFilter(product, selected = selectedPosCategory(), quer
 }
 
 function posProductImageTag(product, visible = true) {
-  const cacheKey = posProductImageCacheKey(product?.imageName, POS_PRODUCT_IMAGE_SIZE);
-  const candidates = posProductImageCandidates(product?.imageName, POS_PRODUCT_IMAGE_SIZE);
+  const source = productPhotoSource(product?.imageName);
+  const cacheKey = posProductImageCacheKey(source, POS_PRODUCT_IMAGE_SIZE);
+  const candidates = posProductImageCandidates(source, POS_PRODUCT_IMAGE_SIZE);
   const initials = escapeHtml(String(product?.name || "PR").slice(0, 2).toUpperCase());
   if (!candidates.length) return initials;
   const alt = escapeHtml(`Foto ${product.name}`);
@@ -11206,7 +11761,7 @@ function posProductImageTag(product, visible = true) {
     ? `src="${escapeHtml(candidates[0])}"`
     : `data-src="${escapeHtml(candidates[0])}"`;
   return `
-    <img class="product-thumb" data-pos-lazy-image ${sourceAttr} data-media-cache-key="${escapeHtml(cacheKey)}" data-media-index="0" onload="posProductImageLoaded(this)" onerror="${mediaImageFallbackScript(product.imageName, POS_PRODUCT_IMAGE_SIZE)}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+    <img class="product-thumb" data-pos-lazy-image ${sourceAttr} data-media-cache-key="${escapeHtml(cacheKey)}" data-media-index="0" onload="posProductImageLoaded(this)" onerror="${mediaImageFallbackScript(source, POS_PRODUCT_IMAGE_SIZE)}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
     <span class="media-fallback-token" hidden>${initials}</span>
   `;
 }
@@ -11804,7 +12359,7 @@ function cartItemOptions(item, addonProducts = []) {
     return `<div class="cart-item-options"><span class="muted">Item lama tidak bisa diubah. Tambahkan item baru jika customer ingin menambah pesanan.</span></div>`;
   }
   const storedPanel = sessionStorage.getItem(`pos_item_panel_${key}`);
-  const activePanel = storedPanel === "variants" ? "addons" : (storedPanel || "addons");
+  const activePanel = !storedPanel || ["variants", "addons"].includes(storedPanel) ? "extra" : storedPanel;
   const product = state.products.find(entry => entry.id === item.productId);
   const discountType = item.discountType || "rp";
   const discountValue = Number(item.discountValue ?? item.discount ?? 0) || 0;
@@ -11816,7 +12371,8 @@ function cartItemOptions(item, addonProducts = []) {
         <button class="${activePanel === "price" ? "active" : ""}" onclick="setItemOptionPanel('${key}', 'price')">Ubah harga</button>
         <button class="${activePanel === "discount" ? "active" : ""}" onclick="setItemOptionPanel('${key}', 'discount')">Diskon</button>
         <button class="${activePanel === "note" ? "active" : ""}" onclick="setItemOptionPanel('${key}', 'note')">Catatan</button>
-        <button class="${activePanel === "addons" ? "active" : ""}" onclick="setItemOptionPanel('${key}', 'addons')">Add-on</button>
+        <button class="${activePanel === "extra" ? "active" : ""}" onclick="setItemOptionPanel('${key}', 'extra')">Extra</button>
+        <button class="${activePanel === "crust" ? "active" : ""}" onclick="setItemOptionPanel('${key}', 'crust')">Crust</button>
       </div>
       ${activePanel === "price" ? `<div class="field"><label>Ubah harga</label><input class="input" type="number" min="0" value="${item.price}" onchange="updateCartItemField('${key}', 'price', this.value)" /></div>` : ""}
       ${activePanel === "discount" ? `
@@ -11829,7 +12385,12 @@ function cartItemOptions(item, addonProducts = []) {
         </div>
       ` : ""}
       ${activePanel === "note" ? `<div class="field"><label>Catatan item</label><input class="input" value="${escapeHtml(item.note || "")}" onchange="updateCartItemField('${key}', 'note', this.value)" placeholder="Contoh: tanpa es, pedas, dipisah" /></div>` : ""}
-      ${activePanel === "addons" ? `<div class="addon-actions">${availableAddons.map(addon => `<button onclick="addAddonToCartItem('${key}', '${addon.id}')">+ ${escapeHtml(addon.name)} ${money(addon.price)}</button>`).join("") || `<span class="muted">Belum ada add-on untuk produk ini.</span>`}</div>` : ""}
+      ${activePanel === "extra" || activePanel === "crust" ? `
+        <div class="cart-addon-group" role="group" aria-label="${activePanel === "crust" ? "Crust" : "Extra"}">
+          <div class="addon-actions">
+            ${availableAddons.filter(addon => addonSelectionType(addon) === activePanel).map(addon => `<button type="button" onclick="addAddonToCartItem('${key}', '${addon.id}')"><span>${escapeHtml(addon.name)}</span><small>${money(addon.price)}</small></button>`).join("") || `<span class="muted">${activePanel === "crust" ? "Produk ini tidak punya pilihan pinggiran." : "Produk ini tidak punya pilihan tambahan."}</span>`}
+          </div>
+        </div>` : ""}
     </div>
   `;
 }
@@ -12111,7 +12672,7 @@ function openOrderCorrection(id) {
   sessionStorage.setItem("pos_order_type", order.type || "");
   sessionStorage.setItem("pos_customer_name", order.customer || "");
   sessionStorage.setItem("pos_service_info", order.serviceInfo || "");
-  sessionStorage.setItem("pos_order_note", order.note || "");
+  sessionStorage.setItem("pos_order_note", orderCustomerNoteDisplay(order.note));
   if (Number(order.discount || 0) > 0) sessionStorage.setItem("pos_discount", order.discount);
   else sessionStorage.removeItem("pos_discount");
   sessionStorage.setItem("pos_discount_type", "rp");
@@ -12370,7 +12931,7 @@ function payUnpaidOrder(id) {
   sessionStorage.setItem("pos_order_type", order.type);
   sessionStorage.setItem("pos_customer_name", order.customer || "");
   sessionStorage.setItem("pos_service_info", order.serviceInfo || "");
-  sessionStorage.setItem("pos_order_note", order.note || "");
+  sessionStorage.setItem("pos_order_note", orderCustomerNoteDisplay(order.note));
   if (Number(order.discount || 0) > 0) sessionStorage.setItem("pos_discount", order.discount);
   else sessionStorage.removeItem("pos_discount");
   sessionStorage.setItem("pos_discount_type", "rp");
@@ -12393,6 +12954,18 @@ function printOrderCardReceipt(id) {
   const order = state.orders.find(item => item.id === id);
   if (!order) return toast("Pesanan tidak ditemukan.");
   printReceiptOrder(order);
+}
+
+function printKitchenOrder(id, kind) {
+  if (kind !== "kitchen1" && kind !== "kitchen2") return;
+  const order = state.orders.find(item => item.id === id);
+  if (!order || order.status === "Dibatalkan" || !(order.items || order.cart || []).length) {
+    return toast("Rincian pesanan belum tersedia untuk cetak dapur.");
+  }
+  const profile = receiptPrintProfile(kind);
+  const title = `Struk Dapur ${kind === "kitchen2" ? 2 : 1} ${displayOrderNumber(order.number)}`;
+  const model = kitchenReceiptModel(order, kind, profile);
+  dispatchKitchenPrint(receiptPrintModelText(model), title, profile.printerSlot, model);
 }
 
 function cancelUnpaidOrder(id) {
@@ -12478,7 +13051,7 @@ async function submitOrder() {
     existingOrder.subtotal = subtotal;
     existingOrder.discount = discount;
     existingOrder.tax = tax;
-    existingOrder.grandTotal = grandTotal;
+    existingOrder.grandTotal = grandTotal + (orderUsesOutletPayment(existingOrder) ? Number(existingOrder.deliveryFee || 0) : 0);
     existingOrder.updatedAt = updateCreatedAt;
     existingOrder.paidAt = updateCreatedAt;
     if (additionalItems.length) {
@@ -12504,7 +13077,7 @@ async function submitOrder() {
     cart = [];
     clearPosDraft();
     sessionStorage.setItem("pos_mobile_view", "items");
-    setLastResult("Pembayaran berhasil", additionalItems.length ? "Pesanan tambahan dikirim ke dapur. Struk kasir siap dicetak." : "Pesanan belum bayar sudah dilunasi. Struk kasir siap dicetak.", existingOrder);
+    setLastResult("Pembayaran berhasil", additionalItems.length ? "Pesanan tambahan dikirim ke dapur. Struk kasir siap dicetak." : "pesanan sudah lunas, struk kasir siap dicetak", existingOrder);
     audit("Pesanan belum bayar dilunasi", `${existingOrder.number} ${money(orderTotal(existingOrder))}`);
     saveState();
     const committedProductIds = new Set([...limitedStockItemTotals(additionalItems).values()].map(entry => entry.product.id));
@@ -13000,6 +13573,7 @@ function orderSequenceMap(orders = []) {
 
 function kitchenOrderNoteDisplay(order) {
   return String(order?.note || "")
+    .split(/(?:^|\r?\n)\s*(?:Kurir membayar harga produk di outlet|Pin lokasi\s*:|Patokan alamat\s*:|Jam pengambilan\s*:|Koordinat\s*:|Alamat (?:penerima|pengantaran)\s*:)/i)[0]
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(line => line && !/(google\.com\/maps|maps\?q=|pin lokasi|latitude|longitude|koordinat)/i.test(line))
@@ -13008,16 +13582,21 @@ function kitchenOrderNoteDisplay(order) {
 
 function kitchenCard(order, sequenceNumber = 0) {
   normalizeOrderBatches(order);
-  const next = nextKitchenAction(order.status);
+  const cancelled = orderIsCancelled(order);
+  const next = cancelled ? null : nextKitchenAction(order.status);
   const canFinish = order.status !== "Sedang Disiapkan" || areAllKitchenItemsPrepared(order);
-  const orderTitle = orderDisplayTitle(order);
   const kitchenType = String(order?.type || "").trim();
   const kitchenServiceInfo = typeof orderServiceInfoDisplay === "function"
     ? orderServiceInfoDisplay(order)
     : String(order?.serviceInfo || order?.service_info || "").trim();
-  const kitchenServiceInfoPill = kitchenServiceInfo && kitchenServiceInfo.toLowerCase() !== kitchenType.toLowerCase()
-    ? kitchenServiceInfo
-    : "";
+  const homeMode = String(order?.customerOrderType || order?.orderMode || order?.customer_order_type || "").toUpperCase();
+  const onlineTakeaway = ["PICKUP_PREORDER", "TAKEAWAY"].includes(homeMode)
+    || String(order.source || "").trim().toLowerCase().includes("self order")
+    || [order.serviceInfo, order.service_info].includes("Takeaway-Rumah");
+  const serviceLabel = kitchenType.toLowerCase() === "delivery" || homeMode === "DELIVERY" ? "Delivery"
+    : /^take[\s_-]*away$/i.test(kitchenType) || homeMode === "PICKUP_PREORDER"
+      ? (onlineTakeaway ? "Takeaway Online" : "Takeaway")
+    : kitchenServiceInfo || kitchenType || "Pesanan";
   const kitchenCustomer = customerDisplayName(order.customer);
   const kitchenOrderNote = kitchenOrderNoteDisplay(order);
   const carryoverLabel = typeof kitchenOrderIsCarryover === "function" && kitchenOrderIsCarryover(order)
@@ -13037,19 +13616,18 @@ function kitchenCard(order, sequenceNumber = 0) {
     : "";
   const actionButtons = [
     next ? `<button class="btn green" type="button" ${order.status === "Sedang Disiapkan" ? "data-kitchen-finish-button" : ""} onclick="event.preventDefault(); event.stopPropagation(); advanceOrder('${order.id}')" ${canFinish ? "" : "disabled"}>${next}</button>` : "",
-    canCancelOrder(order) ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openCancelOrderDialog('${order.id}')">Batalkan</button>` : ""
+    !cancelled && canCancelOrder(order) ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openCancelOrderDialog('${order.id}')">Batalkan</button>` : ""
   ].filter(Boolean).join("");
   return `
-    <div class="card kitchen-order-card" data-kitchen-order-id="${escapeHtml(order.id || "")}">
+    <div class="card kitchen-order-card ${cancelled ? "is-cancelled" : ""}" data-kitchen-order-id="${escapeHtml(order.id || "")}">
       <div class="kitchen-order-head">
         <div class="kitchen-order-titleline">
           <div>
             <div class="order-title-row">
               ${orderSequenceBadge(sequenceNumber)}
-              <strong>${escapeHtml(orderTitle)}</strong>
+              <span class="kitchen-service-chip">${escapeHtml(serviceLabel)}</span>
+              <strong>${escapeHtml(kitchenCustomer || "-")}</strong>
             </div>
-            <span>${dateTime(order.createdAt)}</span>
-            ${carryoverLabel}
           </div>
         </div>
         <div class="kitchen-order-statuses">
@@ -13058,18 +13636,23 @@ function kitchenCard(order, sequenceNumber = 0) {
         </div>
       </div>
       <div class="kitchen-order-meta">
+        <span class="kitchen-order-time">${dateTime(order.createdAt)}</span>
         ${kitchenType ? `<span class="pill">${escapeHtml(kitchenType)}</span>` : ""}
-        ${kitchenServiceInfoPill ? `<span class="pill">${escapeHtml(kitchenServiceInfoPill)}</span>` : ""}
-        ${kitchenCustomer ? `<span class="pill">${escapeHtml(kitchenCustomer)}</span>` : ""}
+        <span class="pill">${escapeHtml(displayOrderNumber(order.number))}</span>
+        ${carryoverLabel}
       </div>
-      ${kitchenOrderNote ? `<p class="kitchen-order-note">${escapeHtml(kitchenOrderNote)}</p>` : ""}
+      ${cancelled ? `<p class="orders-item-group-note kitchen-cancellation-note"><b>Keterangan pembatalan:</b> ${escapeHtml(order.cancelReason || "Pesanan dibatalkan.")}</p>` : ""}
+      ${order.pickupTime || (groups.length <= 1 && kitchenOrderNote) ? `<div class="kitchen-order-notes">
+        ${order.pickupTime ? `<p class="orders-item-group-note so-takeaway-pickup-note"><b>Jam pengambilan:</b> ${escapeHtml(order.pickupTime)}</p>` : ""}
+        ${groups.length <= 1 && kitchenOrderNote ? `<p class="orders-item-group-note kitchen-order-note"><b>Catatan:</b> ${escapeHtml(kitchenOrderNote)}</p>` : ""}
+      </div>` : ""}
       <div class="kitchen-order-items">
         ${groups.map(group => {
-          const groupNote = orderGroupNote(order, group);
+          const groupNote = kitchenOrderNoteDisplay({ note: orderGroupNote(order, group) });
           return `
           <div class="kitchen-item-group">
             ${groups.length > 1 ? `<small>${escapeHtml(group.label)}</small>` : ""}
-            ${groupNote ? `<p class="kitchen-item-group-note">${escapeHtml(groupNote)}</p>` : ""}
+            ${groupNote && (groups.length > 1 || groupNote !== kitchenOrderNote) ? `<p class="kitchen-item-group-note">${escapeHtml(groupNote)}</p>` : ""}
             ${group.items.map((item) => {
               const sourceIndex = (order.items || []).indexOf(item);
               const itemIndex = sourceIndex >= 0 ? sourceIndex : 0;
@@ -13254,7 +13837,25 @@ async function cancelOrder(id, reason = "") {
     return false;
   }
   cancelOrderProcessingIds.add(id);
-  const remotelyRestored = hasLimitedStock ? await restoreLimitedStockCommit(order.number) : false;
+  let remotelyRestored = false;
+  try {
+    if (hasLimitedStock && order.source === "Self Order" && order.type === "Take Away" && /^T\d+$/i.test(order.number)) {
+      const { data, error } = await supabaseClient.rpc("cancel_takeaway_pay_later_order", {
+        p_order_number: order.number, p_reason: reason.trim()
+      });
+      if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.order_id) throw new Error("Server belum mengonfirmasi pembatalan.");
+      remotelyRestored = Boolean(result.stock_restored);
+    } else {
+      remotelyRestored = hasLimitedStock ? await restoreLimitedStockCommit(order.number) : false;
+    }
+  } catch (error) {
+    console.error("Cancel order confirmation failed", error);
+    cancelOrderProcessingIds.delete(id);
+    toast("Pembatalan belum berhasil disimpan. Periksa koneksi lalu coba lagi.", 4800);
+    return false;
+  }
   order.status = "Dibatalkan";
   order.cancelledAt = new Date().toISOString();
   order.cancelReason = reason.trim();
@@ -13358,7 +13959,7 @@ async function restoreOrderStockBeforeDelete(order) {
     const product = state.products.find(candidate => candidate.id === item.productId);
     return item.stockTracked === true || limitedStockRequiresOnline(product, item.stockVariantKey || cartItemVariantKey(item));
   });
-  const remotelyRestored = hasLimitedStock ? await restoreLimitedStockCommit(order.number) : false;
+  const remotelyRestored = hasLimitedStock ? await restoreLimitedStockCommit(order.number, "manual_delete") : false;
   const touchedProductIds = applyLimitedStockItems(order.items, 1, `Hapus pesanan ${order.number}`);
   for (const item of order.items || []) {
     for (const addon of item.addons || []) {
@@ -13544,6 +14145,7 @@ function renderOrders() {
   const filteredReportOrders = reportOnlyOrders.filter(order => orderMatchesQuickFilter(order, quickFilter));
   const ordered = [...filtered, ...filteredReportOrders].sort(ordersEntryStableSort);
   const visibleOrders = ordered.filter(order => orderMatchesSearch(order, query));
+  requestReportOrderDetails(visibleOrders);
   const visibleSequences = orderSequenceMap(visibleOrders);
   const visibleCount = visibleOrders.length;
   const doneCount = orderSummary.loaded ? orderSummary.totalDone : doneOrders.length;
@@ -13687,15 +14289,31 @@ function applyOrdersSearchFilter(value = "") {
 function setSettingsTab(tab) {
   const tabs = allowedSettingsTabs();
   const nextTab = tabs.some(item => item.id === tab) ? tab : (tabs[0]?.id || "notifications");
+  if (nextTab !== settingsTab) receiptSettingsProfile = "";
   settingsTab = nextTab;
   localStorage.setItem("omnipos_settings_tab", settingsTab);
   render();
+}
+
+function setReceiptSettingsProfile(kind) {
+  if (!["customer", "kitchen1", "kitchen2"].includes(kind)) return;
+  receiptSettingsProfile = receiptSettingsProfile === kind ? "" : kind;
+  render();
+  document.querySelector(`[data-receipt-profile="${kind}"]`)?.focus({ preventScroll: true });
 }
 
 function orderCenterCard(order, options = {}) {
   const qty = (order.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
   const expanded = sessionStorage.getItem(`orders_expanded_${order.id}`) === "1";
   const compactStatus = compactOrderStatus(order.status);
+  const type = String(order.type || "-");
+  const onlineTakeaway = ["PICKUP_PREORDER", "TAKEAWAY"].includes(String(order.customerOrderType || order.orderMode || order.customer_order_type || "").toUpperCase())
+    || String(order.source || "").trim().toLowerCase().includes("self order")
+    || [order.serviceInfo, order.service_info].includes("Takeaway-Rumah");
+  const serviceLabel = /^dine[\s_-]*in$/i.test(type) ? orderServiceInfoDisplay(order)
+    : /^take[\s_-]*away$/i.test(type) ? (onlineTakeaway ? "Takeaway Online" : "Takeaway")
+    : type;
+  const heading = `${orderSequenceBadge(options.sequenceNumber)}<span class="orders-service-chip">${escapeHtml(serviceLabel)}</span><strong>${escapeHtml(customerDisplayName(order.customer) || "-")}</strong>`;
   const searchable = Object.prototype.hasOwnProperty.call(options, "searchQuery");
   const searchQuery = String(options.searchQuery || "");
   const searchAttributes = searchable
@@ -13705,38 +14323,48 @@ function orderCenterCard(order, options = {}) {
     return `
       <article class="orders-card unpaid-compact-card ${orderStatusClass(order.status)}" ${searchAttributes} onclick="toggleOrderItems('${order.id}', true)">
         <div class="unpaid-compact-head">
-          <strong>${escapeHtml(displayOrderNumber(order.number))}</strong>
+          <div class="order-title-row orders-customer-heading">${heading}</div>
           <b>${money(orderTotal(order))}</b>
         </div>
         <div class="unpaid-compact-meta">
-          <span>${escapeHtml(customerDisplayName(order.customer))}</span>
-          <span>${escapeHtml(orderServiceInfoDisplay(order))}</span>
+          <span>${escapeHtml(displayOrderNumber(order.number))}</span>
+          ${options.contact?.phoneChip || ""}
           <span>${escapeHtml(order.type || "-")}</span>
         </div>
+        ${options.contact?.actions ? `<div class="orders-card-actions">${options.contact.actions}</div>` : ""}
       </article>
     `;
   }
   if (order.reportOnly) {
+    const detailKey = order.reportKey || reportRecordKey(order);
+    const detailLoading = reportOrderDetailLoadingKeys.has(detailKey);
+    const customerNote = orderCustomerNoteDisplay(order.note);
+    const reportItemRows = (order.items || []).map(item => `
+      <div class="orders-item-line">
+        <span><b>${escapeHtml(orderItemInlineLabel(item))}</b>${item.variantLabel ? `<small class="orders-item-note">${escapeHtml(item.variantLabel)}</small>` : ""}${orderItemNoteHtml(item, "orders-item-note")}</span>
+        <strong>${money(cartItemTotal(item))}</strong>
+      </div>
+    `).join("");
     return `
       <article class="orders-card is-done" ${searchAttributes}>
         <div class="orders-card-head">
           <div>
-            <div class="order-title-row">
-              ${orderSequenceBadge(options.sequenceNumber)}
-              <strong>${escapeHtml(displayOrderNumber(order.number))}</strong>
-            </div>
+            <div class="order-title-row orders-customer-heading">${heading}</div>
             <span>${dateTime(order.paidAt || order.createdAt)}</span>
           </div>
           <span class="orders-status-pill done">Selesai</span>
         </div>
         <div class="orders-card-meta">
           <span>${escapeHtml(order.type || "-")}</span>
-          <span>${escapeHtml(orderServiceInfoDisplay(order))}</span>
-          <span>${escapeHtml(customerDisplayName(order.customer))}</span>
+          <span>${escapeHtml(displayOrderNumber(order.number))}</span>
           <span>Lunas</span>
         </div>
         <div class="orders-card-items">
-          <span class="muted">Ringkasan transaksi dari laporan.</span>
+          ${customerNote ? `<p class="orders-item-group-note"><b>Catatan:</b> ${escapeHtml(customerNote)}</p>` : ""}
+          ${reportItemRows || (order.imported
+            ? '<span class="muted">Ringkasan transaksi dari laporan. Rincian item data impor belum tersedia.</span>'
+            : detailLoading ? '<span class="muted" role="status">Memuat rincian pesanan...</span>'
+            : `<button class="btn orders-report-detail-btn" type="button" onclick="openReportCardDetails(${escapeHtml(JSON.stringify(detailKey))})">Muat rincian pesanan</button>`)}
         </div>
         <div class="orders-card-total">
           <span>Transaksi selesai</span>
@@ -13780,8 +14408,13 @@ function orderCenterCard(order, options = {}) {
     `;
   }).join("");
   const actions = [
+    options.contact?.actions,
     order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan" ? `<button class="btn green" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>` : "",
-    order.paymentStatus === "Lunas" ? `<button class="btn green orders-print-receipt-btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); printOrderCardReceipt('${order.id}')">Print Struk</button>` : "",
+    order.paymentStatus === "Lunas" ? `<button class="btn green orders-print-receipt-btn" type="button" title="Struk pelanggan" onclick="event.preventDefault(); event.stopPropagation(); printOrderCardReceipt('${order.id}')">Print Struk</button>` : "",
+    order.status !== "Dibatalkan" && (order.items || order.cart || []).length ? ["kitchen1", "kitchen2"].map((kind, index) => `
+      <button class="btn orders-kitchen-print-btn" type="button" title="Tanpa harga"
+        onclick="event.preventDefault(); event.stopPropagation(); printKitchenOrder(${escapeHtml(JSON.stringify(order.id))}, '${kind}')">Struk Dapur ${index + 1}</button>`
+    ).join("") : "",
     canCorrectOrder(order) ? `<button class="btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); openOrderCorrection('${order.id}')">Koreksi Pesanan</button>` : "",
     canMoveOrderTable(order) ? `<button class="btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); openMoveOrderTableDialog('${order.id}', ${options.returnToUnpaid ? "'unpaid'" : "'orders'"})">Pindahkan Meja</button>` : "",
     canCancelOrder(order) ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openCancelOrderDialog('${order.id}', ${options.returnToUnpaid ? "true" : "false"})">Batalkan</button>` : "",
@@ -13798,10 +14431,7 @@ function orderCenterCard(order, options = {}) {
     <article class="orders-card ${options.compactUnpaid ? "unpaid-detail-card" : ""} ${orderStatusClass(order.status)} ${expanded ? "is-expanded" : ""}" ${searchAttributes} ${options.returnToUnpaid ? `onclick="toggleOrderItems('${order.id}', true)"` : ""}>
       <div class="orders-card-head">
         <div>
-          <div class="order-title-row">
-            ${orderSequenceBadge(options.sequenceNumber)}
-            <strong>${escapeHtml(displayOrderNumber(order.number))}</strong>
-          </div>
+          <div class="order-title-row orders-customer-heading">${heading}</div>
           <span>${dateTime(order.createdAt)}</span>
         </div>
         <div class="orders-card-statuses">
@@ -13811,8 +14441,8 @@ function orderCenterCard(order, options = {}) {
       </div>
       <div class="orders-card-meta">
         <span>${escapeHtml(order.type || "-")}</span>
-        <span>${escapeHtml(orderServiceInfoDisplay(order))}</span>
-        <span>${escapeHtml(customerDisplayName(order.customer))}</span>
+        <span>${escapeHtml(displayOrderNumber(order.number))}</span>
+        ${options.contact?.phoneChip || ""}
         <span>${escapeHtml(order.paymentStatus || "-")}</span>
       </div>
       <div class="orders-card-items">
@@ -13993,25 +14623,33 @@ async function renameCategory(event) {
     return toast("Nama kategori belum diisi.");
   }
   try {
-    forgetDeletedCategory(name);
+    if (oldName === name) return;
+    if (productCategories().some(category => category !== oldName && category.toLowerCase() === name.toLowerCase())) {
+      return toast("Nama kategori sudah dipakai.");
+    }
     if (oldName) {
-      const affectedProducts = state.products
-        .filter(product => product.category === oldName)
-        .map(product => ({ ...product, category: name }));
-      const categorySynced = await syncMasterEntity("category", categoryPayload(name), "upsert", { userInitiated: true });
-      if (!categorySynced) throw new Error("Kategori baru belum tersimpan.");
-      for (const product of affectedProducts) {
-        const productSynced = await syncMasterEntity("product", product, "upsert", { userInitiated: true });
-        if (!productSynced) throw new Error(`Barang ${product.name} belum tersimpan.`);
+      if (!canAttemptSupabaseSync()) return toast("Sambungkan POS ke Supabase untuk mengedit kategori.");
+      const { local_id } = categoryPayload(name);
+      const { error } = await supabaseClient.from("categories")
+        .update({ name, local_id }).eq("name", oldName).select("id").single();
+      if (error) throw error;
+      state.categories = (state.categories || []).filter(category => category !== oldName);
+      state.products.forEach(product => {
+        if (product.category === oldName) product.category = name;
+      });
+      for (const key of ["product_category", "pos_category", "self_order_category"]) {
+        if (sessionStorage.getItem(key) === oldName) sessionStorage.setItem(key, name);
       }
-      await syncMasterEntity("category", categoryPayload(oldName), "delete");
       audit("Kategori diperbarui", `${oldName} menjadi ${name}`);
     } else {
       const categorySynced = await syncMasterEntity("category", categoryPayload(name), "upsert", { userInitiated: true });
       if (!categorySynced) throw new Error("Kategori belum tersimpan.");
       audit("Kategori disiapkan", name);
     }
-    await loadMasterDataFromSupabase({ force: true, silent: true });
+    forgetDeletedCategory(name);
+    state.categories = [...new Set([...(state.categories || []), name])];
+    saveState();
+    render();
     openCategoryManager();
   } catch (error) {
     console.error("Save category failed", error);
@@ -14055,7 +14693,7 @@ function deleteCategory(category) {
 function openAddonManager() {
   openModal(`
     <div class="section-title addon-manager-title">
-      <div><h3>Daftar Add-on</h3><p>Buat topping atau tambahan yang nanti bisa dipilih per produk.</p></div>
+      <div><h3>Daftar Add-on</h3><p>Kelola tambahan dan pinggiran yang tersedia per produk.</p></div>
       <div class="toolbar"><button class="btn" onclick="closeModal({ skipHistory: true })">Tutup</button></div>
     </div>
     <form class="addon-manager-form addon-manager-compact-form" onsubmit="saveAddon(event)">
@@ -14063,12 +14701,13 @@ function openAddonManager() {
       <div class="field"><label>Nama add-on</label><input name="name" class="input" required placeholder="Contoh: Extra Shot" /></div>
       <div class="field"><label>Harga jual</label><input name="price" class="input" type="number" min="0" required placeholder="6000" /></div>
       <div class="field"><label>Harga modal</label><input name="cost" class="input" type="number" min="0" placeholder="2500" /></div>
+      <div class="field"><label>Jenis</label><select name="selectionType" class="input"><option value="">Otomatis dari nama</option><option value="extra">Tambahan</option><option value="crust">Pinggiran (crust)</option></select></div>
       <button class="btn accent" type="submit">Simpan</button>
     </form>
     <div class="addon-manager-list addon-manager-compact-list">
       ${state.addons.map(addon => `
         <div class="addon-manager-row addon-manager-compact-row">
-          <div><strong>${escapeHtml(addon.name)}</strong><span>Modal: ${money(addon.cost)} · Jual: ${money(addon.price)}</span></div>
+          <div><strong>${escapeHtml(addon.name)}</strong><span>${addonSelectionType(addon) === "crust" ? "Pinggiran" : "Tambahan"} · Modal: ${money(addon.cost)} · Jual: ${money(addon.price)}</span></div>
           <div class="row-actions addon-manager-compact-actions">
             <button class="btn" type="button" onclick="fillAddonForm('${addon.id}')">Edit</button>
             <button class="btn danger" type="button" onclick="deleteAddon('${addon.id}')">Hapus</button>
@@ -14087,6 +14726,7 @@ function fillAddonForm(id) {
   form.elements.name.value = addon.name;
   form.elements.price.value = addon.price;
   form.elements.cost.value = addon.cost || 0;
+  form.elements.selectionType.value = addon.selectionType || "";
   form.elements.name.focus();
 }
 
@@ -14105,7 +14745,8 @@ async function saveAddon(event) {
       id: form.get("id") || "",
       name,
       price: Number(form.get("price") || 0),
-      cost: Number(form.get("cost") || 0)
+      cost: Number(form.get("cost") || 0),
+      selectionType: form.get("selectionType") || addonSelectionType({ name })
     });
     if (saved) openAddonManager();
   } finally {
@@ -14119,11 +14760,13 @@ async function saveAddonPayload(input) {
   const existingByName = state.addons.find(addon => addon.name.trim().toLowerCase() === name.toLowerCase());
   const id = input.id || existingByName?.id || uid();
   const current = state.addons.find(addon => addon.id === id);
-  const payload = { id, name, price: Number(input.price || 0), cost: Number(input.cost || 0), active: current ? current.active : true };
+  const payload = { id, name, price: Number(input.price || 0), cost: Number(input.cost || 0), active: current ? current.active : true, soldOut: current?.soldOut, selectionType: input.selectionType || current?.selectionType };
   forgetDeletedAddon(payload);
   const synced = await syncMasterEntity("addon", payload, "upsert", { userInitiated: true });
   if (!synced) {
-    toast("Gagal menyimpan add-on ke Supabase.");
+    toast(isMissingAddonSelectionTypeColumn(lastMasterSyncError)
+      ? "Gagal menyimpan jenis add-on. Pastikan migrasi jenis add-on sudah diterapkan."
+      : "Gagal menyimpan add-on ke Supabase.");
     await loadMasterDataFromSupabase({ force: true, silent: true });
     return null;
   }
@@ -14187,7 +14830,7 @@ function productAddonPickerHtml(selectedIds = []) {
   return state.addons.map(addon => `
     <label class="addon-picker-card">
       <input name="allowedAddonIds" type="checkbox" value="${addon.id}" ${selectedIds.includes(addon.id) ? "checked" : ""} />
-      <span><strong>${escapeHtml(addon.name)}</strong><small>${money(addon.price)}${addon.active ? "" : " - Nonaktif"}</small></span>
+      <span><strong>${escapeHtml(addon.name)}</strong><small>${addonSelectionType(addon) === "crust" ? "Pinggiran · " : ""}${money(addon.price)}${addon.active ? "" : " - Nonaktif"}</small></span>
     </label>
   `).join("") || `<span class="muted">Belum ada add-on. Klik Kelola Add-on untuk membuat daftar.</span>`;
 }
@@ -14195,10 +14838,9 @@ function productAddonPickerHtml(selectedIds = []) {
 function productInlineAddonListHtml() {
   return state.addons.map(addon => `
     <div class="product-inline-addon-row">
-      <div><strong>${escapeHtml(addon.name)}</strong><span>Modal: ${money(addon.cost)} · Jual: ${money(addon.price)}${addon.active ? "" : " · Nonaktif"}</span></div>
+      <div><strong>${escapeHtml(addon.name)}</strong><span>Modal: ${money(addon.cost)} · Jual: ${money(addon.price)}</span></div>
       <div class="product-inline-addon-actions">
         <button class="btn" type="button" onclick='fillInlineAddonForm(this, ${JSON.stringify(addon.id)})'>Edit</button>
-        <button class="btn ${addon.active ? "" : "accent"}" type="button" onclick='toggleInlineAddon(this, ${JSON.stringify(addon.id)})'>${addon.active ? "Nonaktif" : "Aktif"}</button>
         <button class="btn danger" type="button" onclick='deleteInlineAddon(this, ${JSON.stringify(addon.id)})'>Hapus</button>
       </div>
     </div>
@@ -14274,16 +14916,6 @@ function resetInlineAddonForm(formElement) {
   formElement.querySelectorAll("input").forEach(input => {
     input.value = "";
   });
-}
-
-function toggleInlineAddon(button, id) {
-  const addon = state.addons.find(item => item.id === id);
-  if (!addon) return;
-  addon.active = !addon.active;
-  audit(addon.active ? "Add-on diaktifkan" : "Add-on dinonaktifkan", addon.name);
-  saveState();
-  syncMasterEntity("addon", addon, "upsert", { userInitiated: true });
-  refreshProductInlineAddon(button.closest("[data-product-addon-manager]"));
 }
 
 function deleteInlineAddon(button, id) {
@@ -14435,13 +15067,14 @@ function openProductForm(id) {
             <label class="product-photo-field ${product.imageName ? "has-image" : ""}">
               <input name="imageName" type="hidden" value="${escapeHtml(product.imageName || "")}" />
               <input type="file" accept="image/*" onchange="uploadProductPhoto(this)" hidden />
-              ${product.imageName ? mediaImageTag(product.imageName, "Foto produk", "", 220) : `<span class="photo-icon">+</span>`}
+              ${product.imageName ? mediaImageTag(productPhotoSource(product.imageName), "Foto produk", "", 220) : `<span class="photo-icon">+</span>`}
               <strong>Foto Produk</strong>
-              <small>${product.imageName ? "Klik untuk ganti foto produk." : "Klik untuk upload foto. Min. 600x600px."}</small>
+              <small>Klik untuk ${product.imageName ? "ganti" : "unggah"} foto. Foto dioptimalkan otomatis.</small>
             </label>
             <div class="grid">
               <div class="grid grid-2 product-price-grid">
                 <div class="field wide"><label>Nama Produk</label><input name="name" class="input" required placeholder="Contoh: Es Kopi Susu" value="${escapeHtml(product.name)}" /></div>
+                <div class="field wide"><label for="productDescription">Keterangan Produk</label><textarea id="productDescription" name="description" class="input" rows="3" placeholder="Jelaskan produk untuk pelanggan Self Order">${escapeHtml(product.description || "")}</textarea></div>
                 <div class="field"><label>Kode / SKU</label><input name="sku" class="input" required placeholder="KOP-001" value="${escapeHtml(product.sku)}" /></div>
                 <div class="field wide product-category-field"><label>Kategori</label>
                   <div class="product-category-combobox">
@@ -14588,6 +15221,39 @@ function pickTypedProductCategory(button) {
   input.focus();
 }
 
+async function compressProductPhoto(file) {
+  if (!["image/jpeg", "image/png"].includes(file.type)) return file;
+  const maxDimension = 960;
+  const targetBytes = 180 * 1024;
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    if (longestSide <= maxDimension && file.size <= targetBytes) return file;
+    const scale = Math.min(1, maxDimension / longestSide);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    let best = file;
+    for (const quality of [0.86, 0.78, 0.72]) {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/webp", quality));
+      if (!blob || blob.type !== "image/webp") break;
+      if (blob.size > 0 && blob.size < best.size) best = blob;
+      if (best.size <= targetBytes) break;
+    }
+    if (best === file) return file;
+    const name = file.name.replace(/\.[^.]+$/, "");
+    return new File([best], `${name}.webp`, { type: best.type });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 async function uploadProductPhoto(input) {
   const file = input?.files?.[0];
   if (!file) return;
@@ -14597,22 +15263,16 @@ async function uploadProductPhoto(input) {
   const hidden = field?.querySelector("input[name='imageName']");
   const productName = form?.querySelector("input[name='name']")?.value?.trim();
   const productSku = form?.querySelector("input[name='sku']")?.value?.trim();
-  let previewUrl = "";
+  const hint = field?.querySelector("small");
+  if (input.disabled) return;
+  input.disabled = true;
   try {
     field?.classList.add("uploading");
-    previewUrl = URL.createObjectURL(file);
-    if (field) {
-      field.classList.add("has-image");
-      const image = field.querySelector("img") || document.createElement("img");
-      image.src = previewUrl;
-      image.alt = "Foto produk";
-      image.classList.add("upload-preview");
-      field.querySelector(".photo-icon")?.remove();
-      field.insertBefore(image, field.querySelector("strong"));
-      const hint = field.querySelector("small");
-      if (hint) hint.textContent = "Mengupload foto...";
-    }
-    const uploaded = await uploadMediaFileToGas(file, {
+    if (hint) hint.textContent = "Mengoptimalkan foto...";
+    const photo = await compressProductPhoto(file);
+    const sizeInfo = photo === file ? "" : ` ${Math.ceil(file.size / 1024)} KB → ${Math.ceil(photo.size / 1024)} KB.`;
+    if (hint) hint.textContent = `Mengunggah foto...${sizeInfo}`;
+    const uploaded = await uploadMediaFileToGas(photo, {
       type: "product",
       ownerId: productSku || productName || `product-${Date.now()}`
     });
@@ -14620,10 +15280,11 @@ async function uploadProductPhoto(input) {
     if (field) {
       field.classList.add("has-image");
       const image = field.querySelector("img") || document.createElement("img");
-      image.src = mediaImageSrc(uploaded.url, 220);
+      image.hidden = false;
+      image.src = mediaImageSrc(productPhotoSource(uploaded.url), 220);
       image.dataset.mediaIndex = "0";
       image.onerror = function() {
-        const candidates = mediaImageCandidates(uploaded.url, 220);
+        const candidates = mediaImageCandidates(productPhotoSource(uploaded.url), 220);
         this.dataset.mediaIndex = String(Number(this.dataset.mediaIndex || 0) + 1);
         if (candidates[this.dataset.mediaIndex]) this.src = candidates[this.dataset.mediaIndex];
         else {
@@ -14632,21 +15293,19 @@ async function uploadProductPhoto(input) {
         }
       };
       image.alt = "Foto produk";
-      image.classList.remove("upload-preview");
       field.querySelector(".photo-icon")?.remove();
       field.insertBefore(image, field.querySelector("strong"));
-      const hint = field.querySelector("small");
-      if (hint) hint.textContent = uploaded.local ? "Foto tersimpan lokal. Isi URL GAS untuk simpan ke Drive." : "Foto tersimpan di Google Drive.";
+      if (hint) hint.textContent = `${uploaded.local ? "Foto tersimpan lokal." : "Foto tersimpan di Google Drive."}${sizeInfo}`;
     }
     toast(uploaded.local ? "Foto produk tersimpan lokal." : "Foto produk tersimpan di Google Drive.");
   } catch (error) {
     console.error(error);
+    if (hint) hint.textContent = "Unggah gagal. Klik untuk coba lagi.";
     toast(`Upload foto produk gagal. ${error.message || "Periksa URL GAS atau izin Web App."}`);
   } finally {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    field?.querySelector("img.upload-preview")?.classList.remove("upload-preview");
     field?.classList.remove("uploading");
     input.value = "";
+    input.disabled = false;
   }
 }
 
@@ -14706,6 +15365,10 @@ function setProductFormSaving(form, saving) {
 async function saveProduct(event, id) {
   event.preventDefault();
   const target = event.target;
+  if (target?.querySelector?.(".product-photo-field.uploading")) {
+    toast("Tunggu sampai foto produk selesai diunggah.");
+    return;
+  }
   const submitButton = target?.querySelector?.(".product-save-btn");
   if (submitButton?.disabled) return;
   const existingProduct = state.products.find(item => item.id === id) || {};
@@ -14731,7 +15394,7 @@ async function saveProduct(event, id) {
     sku: form.get("sku"),
     imageName: String(form.get("imageName") || "").trim(),
     category,
-    description: "",
+    description: String(form.get("description") || "").trim(),
     price: variantMode === "off" ? Number(form.get("price")) : Number(variantPriceFallback),
     cost: variantMode === "off" ? Number(form.get("cost")) : Number(variantCostFallback),
     stock: trackStock ? Number(form.get("stock") || 0) : 0,
@@ -15116,6 +15779,22 @@ function reportRecordKey(record) {
   ].join("|");
 }
 
+function reportMergeKey(record) {
+  // Amounts may differ between an old report view and the corrected local order.
+  // Keep receipt/deletion keys intact and use financial-independent identity here.
+  return [
+    record.imported ? "import" : "order",
+    record.number || record.id || "-",
+    record.createdAt ? new Date(record.createdAt).toISOString() : ""
+  ].join("|");
+}
+
+function reportRecordsCoverRange(range) {
+  return Boolean(range && supabaseReportsLoadedAt && supabaseReportCoverage
+    && Number(supabaseReportCoverage.start) <= Number(range.start)
+    && Number(supabaseReportCoverage.end) >= Number(range.end));
+}
+
 function reportRecordTime(record) {
   const source = record || {};
   const value = source.paidAt || source.paid_at || source.createdAt || source.created_at;
@@ -15146,6 +15825,8 @@ function mergeReportRecordsForDisplay(existing, incoming) {
   const incomingBreakdown = normalizePaymentBreakdown(incoming.paymentBreakdown || incoming.payment_breakdown || {});
   const existingBreakdown = normalizePaymentBreakdown(existing.paymentBreakdown || existing.payment_breakdown || {});
   const mergedFields = {
+    total: incoming.outletRevenueVerified ? incoming.total : base.total,
+    outletRevenueVerified: Boolean(existing.outletRevenueVerified || incoming.outletRevenueVerified),
     paymentMethod: base.paymentMethod || other.paymentMethod,
     paymentStatus: base.paymentStatus || other.paymentStatus,
     paidAt: base.paidAt || base.paid_at || other.paidAt || other.paid_at,
@@ -15171,12 +15852,12 @@ function reportSourceRecords(range = null) {
   });
   const merged = new Map();
   for (const record of localRecords) {
-    const key = reportRecordKey(record);
+    const key = reportMergeKey(record);
     merged.set(key, mergeReportRecordsForDisplay(merged.get(key), record));
   }
   for (const record of supabaseReportRecords.filter(record => isReportableRecord(record) && recordInRange(record, range))) {
-    const key = reportRecordKey(record);
-    if (deletedKeys.has(key)) continue;
+    const key = reportMergeKey(record);
+    if (deletedKeys.has(reportRecordKey(record))) continue;
     const existing = merged.get(key);
     merged.set(key, mergeReportRecordsForDisplay(existing, record));
   }
@@ -15237,7 +15918,11 @@ function reportOnlyCompletedOrders(range, localOrders = []) {
   const localNumbers = new Set((localOrders || []).map(order => String(order?.number || "").trim()).filter(Boolean));
   return summary.rows
     .filter(record => !localKeys.has(reportRecordKey(record)) && !localNumbers.has(String(record?.number || "").trim()))
-    .map(record => ({
+    .map(record => {
+      const detailKey = reportRecordKey(record);
+      const detail = record.imported ? null : supabaseReportDetailCache.get(detailKey);
+      const liveOrder = record.imported ? null : state.orders.find(order => String(order.number || "").trim() === String(record.number || "").trim());
+      return {
       id: `report-${reportRecordKey(record)}`,
       number: record.number,
       createdAt: record.createdAt,
@@ -15246,14 +15931,51 @@ function reportOnlyCompletedOrders(range, localOrders = []) {
       type: normalizedOrderType(record.type),
       customer: record.customer,
       serviceInfo: record.serviceInfo || "-",
+      note: record.note || detail?.note || liveOrder?.note || "",
+      imported: Boolean(record.imported),
+      reportKey: detailKey,
       status: "Selesai",
       paymentStatus: "Lunas",
       subtotal: Number(record.subtotal || record.total || 0),
       discount: Number(record.discount || 0),
       total: Number(record.total || 0),
-      items: record.items || [],
+      items: record.items?.length ? record.items : detail?.items?.length ? detail.items : liveOrder?.items || [],
       reportOnly: true
-    }));
+    };
+    });
+}
+
+async function requestReportOrderDetails(orders, force = false) {
+  if (view !== "orders" || !supabaseReadable()) return;
+  const available = Math.max(0, 4 - reportOrderDetailLoadingKeys.size);
+  const candidates = (orders || []).filter(order => {
+    const key = order.reportKey || reportRecordKey(order);
+    return order.reportOnly && !order.imported && !(order.items || []).length
+      && !reportOrderDetailLoadingKeys.has(key) && (force || !supabaseReportDetailCache.has(key));
+  }).slice(0, available);
+  if (!candidates.length) return;
+  await Promise.allSettled(candidates.map(async order => {
+    const key = order.reportKey || reportRecordKey(order);
+    reportOrderDetailLoadingKeys.add(key);
+    if (force) supabaseReportDetailCache.delete(key);
+    try {
+      await loadSupabaseOrderDetailForReport(order);
+    } catch (error) {
+      console.warn("Report order detail unavailable", error);
+      supabaseReportDetailCache.set(key, order);
+    } finally {
+      reportOrderDetailLoadingKeys.delete(key);
+    }
+  }));
+  if (view === "orders") renderWhenInteractionIdle();
+}
+
+async function openReportCardDetails(recordKey) {
+  const record = reportSourceRecords().find(item => reportRecordKey(item) === recordKey);
+  if (!record || record.imported) return;
+  const pending = requestReportOrderDetails([{ ...record, reportOnly: true, reportKey: recordKey, items: [] }], true);
+  renderWhenInteractionIdle();
+  await pending;
 }
 
 async function deleteReportTransaction(recordKey) {
@@ -15837,12 +16559,80 @@ async function uploadReceiptLogo(input) {
 
 function previewReceiptSettings(target) {
   applyReceiptSettingsFromForm(target);
+  const preview = target?.querySelector?.("[data-receipt-preview]");
+  if (preview) preview.innerHTML = renderReceiptPaper();
+  else render();
+  const width = target?.querySelector?.("[data-receipt-preview-width]");
+  if (width) width.textContent = state.settings.receiptWidth || "58mm";
+}
+
+function receiptPrintProfileFromForm(target, kind) {
+  const form = new FormData(target);
+  const profile = receiptPrintProfile(kind);
+  const slot = form.get("receiptPrinterSlot");
+  if (slot === "A" || slot === "B") profile.printerSlot = slot;
+  if (kind === "customer") {
+    return { printerSlot: profile.printerSlot, printMode: profile.printMode };
+  }
+  const width = form.get("kitchenReceiptWidth");
+  const text = name => String(form.get(name) || "").trim();
+  return {
+    printerSlot: profile.printerSlot,
+    width: width === "58mm" || width === "80mm" ? width : "",
+    storeName: text("kitchenStoreName"),
+    address: text("kitchenAddress"),
+    phone: text("kitchenPhone"),
+    headerNote: text("kitchenHeaderNote"),
+    footer: text("kitchenFooter"),
+    showLogo: form.get("kitchenShowLogo") === "on",
+    logoLength: Math.max(1, Math.min(32, Number(form.get("kitchenLogoLength")) || 12)),
+    bottomFeedLines: Math.max(0, Math.min(8, Number(form.get("kitchenBottomFeedLines") ?? 1) || 0)),
+    showTable: form.get("kitchenShowTable") === "on",
+    showCustomer: form.get("kitchenShowCustomer") === "on",
+    showNotes: form.get("kitchenShowNotes") === "on",
+    showQuantity: form.get("kitchenShowQuantity") === "on"
+  };
+}
+
+function kitchenReceiptDemoOrder() {
+  return {
+    ...receiptDemoOrder(),
+    customer: "Ayu",
+    note: "Sajikan hangat",
+    items: [
+      { name: "Pizza Margherita", qty: 2, variantLabel: "Regular", addons: [{ name: "Keju ekstra", qty: 1 }], note: "Potong 8 bagian" },
+      { name: "Kentang Goreng", qty: 1, addons: [] }
+    ]
+  };
+}
+
+function previewKitchenReceiptSettings(form, kind) {
+  const profile = receiptPrintProfileFromForm(form, kind);
+  const model = kitchenReceiptModel(kitchenReceiptDemoOrder(), kind, profile);
+  form.querySelector("[data-receipt-preview]").innerHTML = renderReceiptPrintModel(model, model.headerNote);
+  form.querySelector("[data-receipt-preview-width]").textContent = model.width;
+}
+
+function saveKitchenReceiptSettings(event, kind) {
+  event.preventDefault();
+  if (kind !== "kitchen1" && kind !== "kitchen2") return;
+  state.settings.receiptPrintProfiles ??= {};
+  state.settings.receiptPrintProfiles[kind] = receiptPrintProfileFromForm(event.target, kind);
+  saveState();
+  toast("Pengaturan struk dapur tersimpan di perangkat ini.");
   render();
+}
+
+function testKitchenReceiptPrintFromSettings(form, kind) {
+  if (kind !== "kitchen1" && kind !== "kitchen2") return;
+  const profile = receiptPrintProfileFromForm(form, kind);
+  const model = kitchenReceiptModel(kitchenReceiptDemoOrder(), kind, profile);
+  dispatchKitchenPrint(receiptPrintModelText(model), "Tes cetak struk dapur", profile.printerSlot, model);
 }
 
 function testReceiptPrintFromSettings(target) {
   applyReceiptSettingsFromForm(target);
-  printReceiptOrder(receiptDemoOrder());
+  printReceiptOrder(receiptDemoOrder(), receiptPrintProfileFromForm(target, "customer"));
 }
 
 function saveReceiptSettings(event) {
@@ -15850,6 +16640,8 @@ function saveReceiptSettings(event) {
   if (receiptSettingsSaving) return;
   receiptSettingsSaving = true;
   applyReceiptSettingsFromForm(event.target);
+  state.settings.receiptPrintProfiles ??= {};
+  state.settings.receiptPrintProfiles.customer = receiptPrintProfileFromForm(event.target, "customer");
   audit("Pengaturan struk disimpan", state.settings.receiptStoreName);
   saveState();
   render();
@@ -16044,6 +16836,9 @@ function saveSelfOrderSettings(event) {
     toast("Isi latitude dan longitude outlet yang valid.");
     return;
   }
+  let operatingHours;
+  try { operatingHours = window.FresinOnlineHours.readForm(form); }
+  catch (error) { toast(error.message); return; }
   selfOrderSettingsSaving = true;
   const slideCount = Math.max(0, Math.min(4, Number(form.get("selfOrderPromoSlideCount") || 0) || 0));
   const slides = normalizeSelfOrderPromoSlides(Array.from({ length: slideCount }, (_, index) => ({
@@ -16051,6 +16846,7 @@ function saveSelfOrderSettings(event) {
     productId: String(form.get(`selfOrderPromoTargetProductId_${index}`) || "").trim(),
     label: String(form.get(`selfOrderPromoButtonLabel_${index}`) || "Order Now").trim() || "Order Now"
   })));
+  state.settings.selfOrderOperatingHours = operatingHours;
   state.settings.selfOrderAppName = String(form.get("selfOrderAppName") || "").trim();
   state.settings.selfOrderOutletName = String(form.get("selfOrderOutletName") || "").trim();
   state.settings.deliveryStoreLatitude = latitude;
@@ -16079,16 +16875,17 @@ function saveSelfOrderSettings(event) {
     });
 }
 
-function chooseNativePrinterDevice(devices) {
+function chooseNativePrinterDevice(devices, slot = "A") {
   if (!Array.isArray(devices) || !devices.length) return null;
   if (devices.length === 1) return devices[0];
   const list = devices.map((device, index) => `${index + 1}. ${device.name || "Printer Bluetooth"}${device.id ? ` (${device.id})` : ""}`).join("\n");
-  const answer = prompt(`Pilih printer Bluetooth:\n${list}`, "1");
-  const selectedIndex = Math.max(0, Math.min(devices.length - 1, Number(answer || 1) - 1));
+  const answer = prompt(`Pilih perangkat untuk ${printerSlotLabel(slot)}:\n${list}`, "1");
+  const selectedIndex = Number(answer) - 1;
+  if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= devices.length) return null;
   return devices[selectedIndex] || null;
 }
 
-function scanNativePrinters() {
+function scanNativePrinters(slot = "A") {
   const androidBridge = window.KasirinAndroid;
   const nativeBridge = window.KasirinNative;
   const scanPrintersNative = androidBridge?.scanPrinters || nativeBridge?.scanPrinters;
@@ -16103,29 +16900,34 @@ function scanNativePrinters() {
     }, 12000);
     window.__kasirinPrinterScanCallbacks[callbackId] = result => {
       clearTimeout(timeout);
+      delete window.__kasirinPrinterScanCallbacks[callbackId];
       if (!result?.ok) {
         toast(result?.error || "APK belum bisa membaca printer Bluetooth.");
         resolve(true);
         return;
       }
-      const device = chooseNativePrinterDevice(result.devices || []);
+      const devices = result.devices || [];
+      const device = chooseNativePrinterDevice(devices, slot);
       if (!device) {
-        toast("Belum ada printer Bluetooth paired. Pair dari Settings Android dulu.");
+        toast(devices.length ? "Pemilihan printer dibatalkan." : "Belum ada printer Bluetooth yang dipasangkan di Android.");
         resolve(true);
         return;
       }
-      state.settings.printerConnection = "Bluetooth";
-      state.settings.printerDevice = String(device.name || "Printer Bluetooth").trim();
-      state.settings.printerDeviceId = String(device.id || device.address || "").trim();
-      saveNativeDefaultPrinter({
-        name: state.settings.printerDevice,
-        id: state.settings.printerDeviceId,
-        address: state.settings.printerDeviceId
-      });
-      audit("Printer Bluetooth APK dipilih", state.settings.printerDevice);
+      const address = String(device.address || device.id || "").trim();
+      if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(address)) {
+        toast(`Alamat Bluetooth untuk ${printerSlotLabel(slot)} tidak valid.`);
+        resolve(true);
+        return;
+      }
+      const settings = slot === "B" ? (state.settings.printerB ??= {}) : state.settings;
+      settings.printerConnection = "Bluetooth";
+      settings.printerDevice = String(device.name || "Printer Bluetooth").trim();
+      settings.printerDeviceId = address;
+      if (slot === "A") saveNativeDefaultPrinter({ name: settings.printerDevice, id: address, address });
+      audit(`${printerSlotLabel(slot)} dipilih`, settings.printerDevice);
+      saveDevicePrinterSettings(slot);
       saveState();
-      syncStoreSettingsToSupabase({ silent: true }).catch(error => console.error("Printer settings sync failed", error));
-      toast("Printer Bluetooth APK dipilih.");
+      toast(`${printerSlotLabel(slot)} tersimpan untuk perangkat ini.`);
       render();
       resolve(true);
     };
@@ -16161,8 +16963,12 @@ function saveNativeDefaultPrinter(device) {
   }
 }
 
-async function scanPrinters() {
-  if (await scanNativePrinters()) return;
+async function scanPrinters(slot = "A") {
+  if (slot !== "A" && slot !== "B") return;
+  if (await scanNativePrinters(slot)) return;
+  if (slot === "B") {
+    return toast("Pemindaian Printer 2 tersedia di APK POS. Di browser, gunakan Dialog cetak sistem.");
+  }
   if (!navigator.bluetooth?.requestDevice) {
     toast("Browser belum mendukung pemindaian Bluetooth. Sambungkan printer dari pengaturan perangkat.");
     return;
@@ -16173,39 +16979,33 @@ async function scanPrinters() {
     state.settings.printerDevice = device.name || "Printer Bluetooth";
     state.settings.printerDeviceId = device.id || "";
     audit("Printer Bluetooth dipilih", state.settings.printerDevice);
+    saveDevicePrinterSettings();
     saveState();
-    syncStoreSettingsToSupabase({ silent: true }).catch(error => console.error("Printer settings sync failed", error));
-    toast("Printer Bluetooth dipilih.");
+    toast("Perangkat dipilih. Cetak dari browser tetap memakai dialog sistem.");
     render();
   } catch (error) {
     if (error?.name !== "NotFoundError") toast("Pemindaian printer dibatalkan atau gagal.");
   }
 }
 
-async function savePrinterSettings(event) {
+async function savePrinterSettings(event, slot = "A") {
   event.preventDefault();
+  if (slot !== "A" && slot !== "B") return;
   const stopLoading = beginFormSubmitLoading(event.target, "Menyimpan printer...");
   if (!stopLoading) return;
   const form = new FormData(event.target);
   try {
-    state.settings.printerConnection = String(form.get("printerConnection") || "Bluetooth");
-    state.settings.printerDevice = String(form.get("printerDevice") || state.settings.printerDevice || "").trim();
-    saveNativeDefaultPrinter({
-      name: state.settings.printerDevice,
-      id: state.settings.printerDeviceId,
-      address: state.settings.printerDeviceId
-    });
-    audit("Pengaturan printer disimpan", state.settings.printerDevice || state.settings.printerConnection);
-    saveState();
-    try {
-      const synced = await syncStoreSettingsToSupabase({ silent: true });
-      toast(state.settings.printerDevice
-        ? (synced ? "Printer disimpan online." : "Printer disimpan lokal.")
-        : "Koneksi printer disimpan. Pindai perangkat untuk memilih printer.");
-    } catch (error) {
-      console.error("Printer settings sync failed", error);
-      toast(state.settings.printerDevice ? "Printer disimpan lokal." : "Koneksi printer disimpan lokal.");
+    const settings = slot === "B" ? (state.settings.printerB ??= {}) : state.settings;
+    settings.printerConnection = String(form.get("printerConnection") || "Bluetooth");
+    settings.printerPrintMode = (form.get("printerPrintMode") || settings.printerPrintMode) === "text" ? "text" : "formatted";
+    settings.printerDevice = String(form.get("printerDevice") || settings.printerDevice || "").trim();
+    if (slot === "A" && settings.printerConnection === "Bluetooth" && settings.printerDeviceId) {
+      saveNativeDefaultPrinter({ name: settings.printerDevice, id: settings.printerDeviceId });
     }
+    audit(`Pengaturan ${printerSlotLabel(slot)} disimpan`, settings.printerDevice || settings.printerConnection);
+    saveDevicePrinterSettings(slot);
+    saveState();
+    toast(`Pengaturan ${printerSlotLabel(slot)} disimpan untuk perangkat ini.`);
     render();
   } finally {
     stopLoading();

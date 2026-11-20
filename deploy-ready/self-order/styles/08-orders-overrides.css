@@ -2797,14 +2797,14 @@
 }
 
 .staff-lock-screen {
-  --staff-brand: #b0081b;
-  --staff-brand-dark: #870012;
   min-height: 100vh;
-  min-height: 100svh;
   display: grid;
   place-items: center;
-  padding: 24px 18px;
-  background: #f5f5f6;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 20% 8%, rgba(15, 130, 98, 0.2), transparent 32%),
+    radial-gradient(circle at 88% 0%, rgba(84, 185, 143, 0.22), transparent 34%),
+    linear-gradient(145deg, #f7fbfa, #edf5f2 52%, #eef7f4);
 }
 
 .view-dashboard .dashboard-cancel-order-list .dashboard-order-item.is-cancelled {
@@ -2822,14 +2822,14 @@
 }
 
 .staff-lock-card {
-  width: min(344px, 100%);
-  min-width: 0;
-  padding: 24px;
-  border: 1px solid #e9e3e5;
-  border-top: 3px solid var(--staff-brand);
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 10px 32px rgba(48, 18, 20, .07);
+  width: min(430px, 100%);
+  padding: 26px;
+  border: 1px solid rgba(12, 116, 88, 0.16);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.92)),
+    radial-gradient(circle at 50% 0%, rgba(207, 249, 228, 0.8), transparent 46%);
+  box-shadow: 0 26px 80px rgba(5, 45, 36, 0.16);
 }
 
 .sidebar-account {
@@ -2983,28 +2983,22 @@
 
 .staff-lock-brand {
   align-items: center;
-  gap: 12px;
-  padding: 0 0 20px;
-  border: 0;
-  border-bottom: 1px solid #f0e9eb;
-  border-radius: 0;
-  background: transparent;
+  gap: 15px;
+  padding: 10px;
+  border: 1px solid rgba(12, 116, 88, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(235, 255, 245, 0.84), rgba(255, 255, 255, 0.92));
 }
 
 .staff-lock-brand > .staff-lock-logo {
-  flex-basis: 52px;
-  width: 52px;
-  height: 52px;
+  flex-basis: 64px;
+  width: 64px;
+  height: 64px;
   overflow: hidden;
-  border: 0;
-  border-radius: 8px;
+  border: 1px solid rgba(12, 116, 88, 0.12);
+  border-radius: 20px;
   background: #fff;
-  box-shadow: none;
-}
-
-.staff-lock-heading {
-  min-width: 0;
-  overflow-wrap: anywhere;
+  box-shadow: 0 14px 28px rgba(5, 45, 36, 0.12);
 }
 
 .staff-lock-logo img {
@@ -3015,24 +3009,18 @@
 
 .staff-lock-heading small {
   display: block;
-  margin-bottom: 4px;
-  color: var(--staff-brand);
-  font-size: 10px;
-  font-weight: 700;
+  margin-bottom: 3px;
+  color: #0d765b;
+  font-size: 12px;
+  font-weight: 900;
   letter-spacing: 0;
 }
 
 .staff-lock-brand h1 {
   margin: 0;
-  color: #301214;
-  font-size: 20px;
-  line-height: 1.3;
-}
-
-.staff-lock-brand p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
+  color: #102438;
+  font-size: 24px;
+  line-height: 1.1;
 }
 
 .staff-lock-brand p,
@@ -3059,8 +3047,8 @@
 }
 
 .staff-login-form {
-  gap: 10px;
-  margin-top: 20px;
+  gap: 13px;
+  margin-top: 18px;
 }
 
 .staff-login-form .field > span {
@@ -3070,97 +3058,18 @@
 }
 
 .staff-login-form .input {
-  width: 100%;
-  min-width: 0;
-  height: 46px;
-  min-height: 46px;
-  padding: 0 12px 0 40px;
-  border: 1px solid #ded9dc;
-  border-radius: 8px;
-  background: #fcfbfc;
-  color: #301214;
+  min-height: 52px;
+  border-radius: 16px;
+  border-color: rgba(12, 116, 88, 0.18);
+  background: rgba(255, 255, 255, 0.95);
   font-size: 16px;
-  outline: none;
-  box-shadow: none;
 }
 
-.staff-login-form .input::placeholder {
-  color: #8a7c81;
-  opacity: 1;
-  font-size: 14px;
-}
-
-.staff-login-form .input:focus {
-  border-color: var(--staff-brand);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(176, 8, 27, .09);
-}
-
-.staff-login-field {
-  position: relative;
-  display: block;
-  min-width: 0;
-}
-
-.staff-login-field-icon {
-  position: absolute;
-  left: 13px;
-  top: 14px;
-  opacity: .45;
-  pointer-events: none;
-}
-
-.staff-login-pin-field .input {
-  padding-right: 46px;
-}
-
-.staff-login-pin-toggle {
-  position: absolute;
-  right: 1px;
-  top: 1px;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-}
-
-.staff-login-pin-toggle img {
-  opacity: .5;
-}
-
-.staff-login-form .btn.accent {
-  min-height: 46px;
-  margin-top: 4px;
-  padding: 0 14px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--staff-brand);
-  border-radius: 8px;
-  background: var(--staff-brand);
-  color: #fff;
-  box-shadow: 0 3px 8px rgba(176, 8, 27, .12);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.staff-login-form .btn.accent img {
-  filter: brightness(0) invert(1);
-}
-
-.staff-login-form .btn.accent:hover:not(:disabled) {
-  background: var(--staff-brand-dark);
-  border-color: var(--staff-brand-dark);
-}
-
-.staff-login-form button:focus-visible {
-  outline: 2px solid var(--staff-brand);
-  outline-offset: 3px;
+.staff-login-form .btn {
+  min-height: 52px;
+  margin-top: 2px;
+  border-radius: 17px;
+  font-size: 16px;
 }
 
 .staff-current-card {
@@ -5214,6 +5123,25 @@
   min-width: 0;
 }
 
+.orders-customer-heading { flex-wrap: wrap; gap: 6px; }
+.orders-customer-heading > strong { overflow-wrap: anywhere; }
+.orders-card .orders-service-chip { display: inline-flex; align-items: center; min-height: 24px; padding: 4px 8px; border-radius: 6px; background: #e5f1ff; color: #16519b; font-size: 11px; font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
+
+.view-kitchen .kitchen-order-titleline .order-title-row { flex-wrap: wrap; gap: 6px; }
+.view-kitchen .kitchen-order-titleline strong { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.view-kitchen .kitchen-order-titleline .kitchen-service-chip { display: inline-flex; align-items: center; width: fit-content; min-height: 24px; margin: 0; padding: 4px 8px; border-radius: 6px; background: #e5f1ff; color: #16519b; font-size: 10.5px; font-weight: 750; line-height: 1.2; }
+.view-kitchen .kitchen-order-titleline > div > span { display: block; margin-top: 4px; font-size: 10px; line-height: 1.4; }
+.view-kitchen .kitchen-order-notes { display: grid; gap: 5px; margin-top: 7px; }
+.view-kitchen .kitchen-order-notes .orders-item-group-note { width: 100%; max-width: none; margin: 0; padding: 5px 7px; border: 1px solid #efd9a8; border-radius: 10px; background: #fff9ec; color: #8a571d; font-size: 10.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.view-kitchen .kitchen-order-meta { align-items: center; }
+.view-kitchen .kitchen-order-meta > .kitchen-order-time { color: #617890; font-size: 10px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
+.view-kitchen .kitchen-order-meta .kitchen-carryover-badge { margin: 0; }
+.orders-card .orders-item-group-note.so-takeaway-pickup-note,
+.view-kitchen .kitchen-order-notes .so-takeaway-pickup-note { border-color: #c8dcf5; background: #eaf3ff; color: #245c90; }
+
+.view-kitchen .kitchen-order-card.is-cancelled { border-color: #e7c4ba; background: linear-gradient(135deg, #fffaf6, #fbece7); }
+.view-kitchen .kitchen-cancellation-note { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #e8c7bd; border-radius: 11px; background: #fff5ee; color: #925e4d; font-size: 11px; line-height: 1.5; text-align: center; }
+
 .view-kitchen .kitchen-order-titleline .order-sequence-badge,
 .view-orders .orders-card-head .order-sequence-badge {
   flex: 0 0 auto;
@@ -6375,24 +6303,6 @@
   font-size: 10.5px;
 }
 
-.view-orders .orders-card-actions .orders-print-receipt-btn,
-.view-orders .orders-card-actions .orders-print-receipt-btn.btn.green {
-  background: var(--green) !important;
-  border-color: var(--green) !important;
-  color: #fff !important;
-  -webkit-text-fill-color: #fff !important;
-}
-
-.view-orders .orders-card-actions .orders-print-receipt-btn:hover,
-.view-orders .orders-card-actions .orders-print-receipt-btn:focus,
-.view-orders .orders-card-actions .orders-print-receipt-btn:focus-visible,
-.view-orders .orders-card-actions .orders-print-receipt-btn:active {
-  background: var(--green-dark) !important;
-  border-color: var(--green-dark) !important;
-  color: #fff !important;
-  -webkit-text-fill-color: #fff !important;
-}
-
 @media (min-width: 1180px) {
   .view-orders .orders-list-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6861,3 +6771,10 @@
   .pos-layout.display-grid .product-list,
   .pos-layout.display-compact .product-list { padding-top: 8px !important; }
 }
+
+.view-kitchen .kitchen-order-card.kitchen-takeaway-notice { border-color: #c5d8f1; background: linear-gradient(135deg, #f7faff, #eaf2ff); }
+.view-kitchen .kitchen-takeaway-notice .kitchen-notice-status { background: #fff0d5; color: #8d5b20; border: 1px solid #ebd1a5; font-size: 10px; text-align: center; }
+.view-kitchen .kitchen-takeaway-notice > .so-takeaway-pickup-note { margin: 7px 0 0; padding: 6px 8px; border: 1px solid #cadcf2; border-radius: 10px; background: #eaf3ff; color: #245c90; font-size: 11px; line-height: 1.4; }
+
+.view-kitchen .kitchen-status-tabs button:has(.kitchen-notice-count) { display: inline-flex; align-items: center; gap: 6px; }
+.view-kitchen .kitchen-notice-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: #dc2626; color: #fff; font: 700 10px/1 system-ui, sans-serif; }

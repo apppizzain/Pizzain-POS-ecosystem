@@ -64,9 +64,13 @@ function renderNotificationSettingsTab() {
         <div class="notification-category-card">
           <div>
             <strong>Dapur hanya bunyi untuk kategori</strong>
-            <span>${selectedKitchenCategories.length ? `${selectedKitchenCategories.length} kategori dipilih di perangkat ini` : "Kosongkan untuk bunyi semua kategori"}</span>
+            <span>${selectedKitchenCategories.length ? `${selectedKitchenCategories.length} pilihan aktif di perangkat ini` : "Semua kategori produk; Konfirmasi dipilih terpisah"}</span>
           </div>
           <div class="notification-category-grid">
+            <label title="Bunyi untuk pesanan yang menunggu diterima kasir">
+              <input type="checkbox" name="orderKitchenNotificationCategories" value="__confirmation__" ${selectedKitchenKeys.has("__confirmation__") ? "checked" : ""} />
+              <span>Konfirmasi</span>
+            </label>
             ${categories.map(category => {
               const checked = selectedKitchenKeys.has(String(category || "").toLowerCase());
               return `
@@ -323,16 +327,17 @@ function renderSelfOrderSettingsTab() {
         <div><h3>Self Order</h3><p>Atur identitas aplikasi dan slide promo yang tampil ke pelanggan.</p></div>
       </div>
       <form class="self-order-admin-form" onsubmit="saveSelfOrderSettings(event)">
+        ${window.FresinOnlineHours.renderSettings(settings.selfOrderOperatingHours)}
         <div class="self-order-identity-card">
           <div class="self-order-profile-preview">
             ${profileImage ? mediaImageTag(profileImage, "Foto profil self order", "", 320) : `<span>${navIcon("selforder")}</span>`}
           </div>
           <div class="settings-form-grid">
-            <div class="field"><label>Nama aplikasi</label><input class="input" name="selfOrderAppName" value="${escapeHtml(settings.selfOrderAppName || settings.receiptStoreName || "")}" placeholder="Pizzain Indonesia" /></div>
-            <div class="field"><label>Nama outlet</label><input class="input" name="selfOrderOutletName" value="${escapeHtml(settings.selfOrderOutletName || state.outlet || "")}" placeholder="Outlet Utama" /></div>
+            <div class="field"><label>Nama aplikasi</label><input class="input" name="selfOrderAppName" value="${escapeHtml(settings.selfOrderAppName || settings.receiptStoreName || "")}" placeholder="Pizzain" /></div>
             <div class="field"><label>Latitude outlet</label><input class="input" type="number" step="any" min="-90" max="90" name="deliveryStoreLatitude" value="${escapeHtml(settings.deliveryStoreLatitude ?? "")}" /></div>
             <div class="field"><label>Longitude outlet</label><input class="input" type="number" step="any" min="-180" max="180" name="deliveryStoreLongitude" value="${escapeHtml(settings.deliveryStoreLongitude ?? "")}" /></div>
             <div class="field"><label>API key peta Geoapify</label><input class="input" name="deliveryGeoapifyApiKey" value="${escapeHtml(settings.deliveryGeoapifyApiKey || "")}" autocomplete="off" /></div>
+            <div class="field"><label>Nama outlet</label><input class="input" name="selfOrderOutletName" value="${escapeHtml(settings.selfOrderOutletName || state.outlet || "")}" placeholder="Outlet Utama" /></div>
             <div class="field">
               <label>Foto profil</label>
               <label class="btn report-import-btn self-order-upload-btn ${profileUpload.className}">
@@ -507,16 +512,35 @@ function receiptSwitch(name, label, enabled) {
 
 function renderReceiptSettingsTab() {
   const settings = state.settings;
+  const kinds = [
+    ["customer", "Struk Pelanggan"],
+    ["kitchen1", "Struk Dapur 1"],
+    ["kitchen2", "Struk Dapur 2"]
+  ];
+  const activeKind = receiptSettingsProfile;
+  const activeTitle = kinds.find(([kind]) => kind === activeKind)?.[1] || "";
+  const profile = activeKind ? receiptPrintProfile(activeKind) : null;
   return `
     <section class="settings-panel receipt-settings-panel settings-single-panel receipt-modern-panel settings-receipt-compact">
       <div class="section-title compact-settings-title">
-        <div><h3>Struk</h3><p>Atur informasi yang muncul di cetakan.</p></div>
+        <div><h3>Pengaturan Struk</h3><p>Pilih jenis struk untuk mengatur isi dan printer.</p></div>
       </div>
-      <form class="receipt-settings-modern" onchange="previewReceiptSettings(this)" onsubmit="saveReceiptSettings(event)">
-        <div class="receipt-preview-box compact-receipt-preview ${receiptLogoUploading ? "receipt-uploading" : ""}">
-          ${renderReceiptPaper()}
-        </div>
+      <div class="receipt-profile-grid">
+        ${kinds.map(([kind, label]) => `
+          <button class="receipt-profile-card ${activeKind === kind ? "active" : ""}" type="button"
+            data-receipt-profile="${kind}" aria-expanded="${activeKind === kind}" aria-controls="receipt-profile-panel"
+            onclick="setReceiptSettingsProfile('${kind}')">
+              <span class="receipt-profile-icon" aria-hidden="true">${navIcon(kind === "customer" ? "orders" : "kitchen")}</span>
+              <span>${label}</span>
+          </button>`).join("")}
+      </div>
+      <div id="receipt-profile-panel" ${!activeKind ? "hidden" : ""}>
+      ${activeKind === "customer" ? `
+      <form class="receipt-settings-modern" aria-label="Struk Pelanggan" onchange="previewReceiptSettings(this)" onsubmit="saveReceiptSettings(event)">
+        ${renderReceiptSettingsPreview(renderReceiptPaper(), settings.receiptWidth, receiptLogoUploading)}
         <div class="receipt-settings-list">
+          <h4 class="receipt-editor-heading">Struk Pelanggan</h4>
+          ${renderReceiptPrinterField(profile.printerSlot)}
           <div class="receipt-mini-grid">
             <div class="field"><label>Nama toko</label><input class="input" name="receiptStoreName" required value="${escapeHtml(settings.receiptStoreName)}" /></div>
             <div class="field"><label>Telepon</label><input class="input" name="receiptPhone" value="${escapeHtml(settings.receiptPhone)}" /></div>
@@ -558,59 +582,127 @@ function renderReceiptSettingsTab() {
           </div>
         </div>
       </form>
+      ` : activeKind ? `
+        ${renderKitchenReceiptSettings(activeKind, activeTitle, profile)}
+      ` : ""}
+      </div>
     </section>
   `;
 }
 
+function renderReceiptSettingsPreview(paper, width, uploading = false) {
+  return `<div class="receipt-preview-box compact-receipt-preview ${uploading ? "receipt-uploading" : ""}">
+    <div class="receipt-preview-heading">
+      <strong>Pratinjau</strong><small data-receipt-preview-width>${escapeHtml(width || "58mm")}</small>
+    </div>
+    <div class="receipt-preview-paper" data-receipt-preview>${paper}</div>
+  </div>`;
+}
+
+function renderKitchenReceiptSettings(kind, title, profile) {
+  const model = kitchenReceiptModel(kitchenReceiptDemoOrder(), kind, profile);
+  return `
+    <form class="receipt-settings-modern receipt-kitchen-form" aria-label="${title}"
+      oninput="previewKitchenReceiptSettings(this, '${kind}')"
+      onsubmit="saveKitchenReceiptSettings(event, '${kind}')">
+      ${renderReceiptSettingsPreview(renderReceiptPrintModel(model, model.headerNote), model.width)}
+      <div class="receipt-settings-list">
+        <div>
+          <h4 class="receipt-editor-heading">${title}</h4>
+          <p class="receipt-kitchen-note">Item dan catatan, tanpa harga.</p>
+        </div>
+        <div class="receipt-mini-grid">
+          ${renderReceiptPrinterField(profile.printerSlot)}
+          <label class="field"><span>Lebar kertas</span><select name="kitchenReceiptWidth">
+            <option value="">Ikuti pelanggan</option>
+            ${["58mm", "80mm"].map(width => `<option value="${width}" ${profile.width === width ? "selected" : ""}>${width}</option>`).join("")}
+          </select></label>
+          <label class="field"><span>Nama toko</span><input class="input" name="kitchenStoreName" value="${escapeHtml(profile.storeName)}" /></label>
+          <label class="field"><span>Telepon</span><input class="input" type="tel" name="kitchenPhone" value="${escapeHtml(profile.phone)}" /></label>
+          <label class="field receipt-editor-wide"><span>Alamat</span><input class="input" name="kitchenAddress" value="${escapeHtml(profile.address)}" /></label>
+        </div>
+        ${receiptSwitch("kitchenShowLogo", "Tampilkan logo usaha", profile.showLogo)}
+        <div class="receipt-mini-grid">
+          <label class="field"><span>Panjang logo</span><input class="input" name="kitchenLogoLength" type="number" min="1" max="32" value="${profile.logoLength}" /></label>
+          <label class="field"><span>Spasi bawah</span><input class="input" name="kitchenBottomFeedLines" type="number" min="0" max="8" value="${profile.bottomFeedLines}" /></label>
+        </div>
+        ${receiptSwitch("kitchenShowTable", "Tampilkan nomor meja", profile.showTable)}
+        ${receiptSwitch("kitchenShowCustomer", "Tampilkan nama pelanggan", profile.showCustomer)}
+        ${receiptSwitch("kitchenShowNotes", "Tampilkan catatan pesanan", profile.showNotes)}
+        ${receiptSwitch("kitchenShowQuantity", "Tampilkan total kuantitas", profile.showQuantity)}
+        <label class="field"><span>Keterangan header</span><textarea name="kitchenHeaderNote">${escapeHtml(profile.headerNote)}</textarea></label>
+        <label class="field"><span>Keterangan footer</span><textarea name="kitchenFooter">${escapeHtml(profile.footer)}</textarea></label>
+        <div class="receipt-action-row">
+          <button type="button" class="btn" onclick="testKitchenReceiptPrintFromSettings(this.form, '${kind}')">Tes Cetak</button>
+          <button type="submit" class="btn accent">Simpan Struk</button>
+        </div>
+      </div>
+    </form>
+  `;
+}
+
+function renderReceiptPrinterField(selected) {
+  return `
+    <label class="field">
+      <span>Printer tujuan</span>
+      <select name="receiptPrinterSlot">
+        <option value="A" ${selected === "A" ? "selected" : ""}>Printer 1</option>
+        <option value="B" ${selected === "B" ? "selected" : ""}>Printer 2</option>
+      </select>
+    </label>
+  `;
+}
+
 function renderPrinterSettingsTab() {
-  const settings = state.settings;
-  const hasDevice = Boolean(settings.printerDevice);
+  const renderPrinter = (slot, settings) => {
+    const name = slot === "B" ? "Printer 2" : "Printer 1";
+    const systemPrint = Boolean(settings.printerConnection && settings.printerConnection !== "Bluetooth");
+    return `
+      <form class="printer-form printer-slot-card" aria-label="${name}" onsubmit="savePrinterSettings(event, '${slot}')">
+        <div class="printer-slot-title">
+          <h4>${name}</h4>
+        </div>
+        <div class="printer-connect-row">
+          <label class="field">
+            <span>Koneksi</span>
+            <select name="printerConnection" aria-label="Koneksi ${name}">
+              <option value="Bluetooth" ${!systemPrint ? "selected" : ""}>Bluetooth</option>
+              <option value="System" ${systemPrint ? "selected" : ""}>Dialog cetak sistem</option>
+            </select>
+          </label>
+          <button class="btn printer-scan-btn" type="button" onclick="scanPrinters('${slot}')">Pindai</button>
+        </div>
+        <div class="printer-device-card">
+          ${systemPrint ? `
+            <div class="printer-device-empty">
+              <strong>Dialog cetak sistem</strong>
+              <span>Pilih perangkat pada dialog saat mencetak.</span>
+            </div>` : settings.printerDevice ? `
+            <div class="printer-device-empty">
+              <strong>${escapeHtml(settings.printerDevice)}</strong>
+              <span>${escapeHtml(settings.printerDeviceId || "Bluetooth tersimpan")}</span>
+            </div>` : `
+            <div class="printer-device-empty">
+              <strong>Belum ada perangkat dipilih</strong>
+              <span>Pasangkan printer di Android, lalu tekan Pindai.</span>
+            </div>`}
+        </div>
+        <div class="printer-slot-actions">
+          <button class="btn" type="button" onclick="testPrinterSlot('${slot}')">Tes Cetak</button>
+          <button class="btn accent" type="submit" aria-label="Simpan ${name}">Simpan</button>
+        </div>
+      </form>
+    `;
+  };
   return `
     <section class="settings-panel settings-single-panel printer-settings-panel">
       <div class="section-title">
-        <div><h3>Pilih Printer</h3><p>Atur perangkat cetak struk dan label.</p></div>
+        <div><h3>Pengaturan Printer</h3><p>Atur koneksi printer untuk perangkat ini.</p></div>
       </div>
-      <div class="printer-note">
-        <span>i</span>
-        <p>Perangkat terpasang akan terisi dari printer Bluetooth yang tersambung atau dipilih dari perangkat ini.</p>
+      <div class="printer-slot-grid">
+        ${renderPrinter("A", state.settings)}
+        ${renderPrinter("B", state.settings.printerB || {})}
       </div>
-      <form class="printer-form" onsubmit="savePrinterSettings(event)">
-        <div class="printer-connect-row">
-          <label class="field">
-            <span>Pilih koneksi printer</span>
-            <select name="printerConnection">
-              ${["Bluetooth", "USB", "Network"].map(type => `<option ${settings.printerConnection === type ? "selected" : ""}>${type}</option>`).join("")}
-            </select>
-          </label>
-          <button class="btn printer-scan-btn" type="button" onclick="scanPrinters()">Pindai</button>
-        </div>
-        <div class="printer-help">
-          <strong>Cara menghubungkan printer Bluetooth:</strong>
-          <ol>
-            <li>Aktifkan printer dan Bluetooth perangkat.</li>
-            <li>Tekan pindai, lalu pilih printer yang muncul.</li>
-            <li>Simpan pengaturan printer.</li>
-          </ol>
-        </div>
-        <div class="printer-device-card">
-          <h4>Perangkat Terpasang</h4>
-          ${hasDevice ? `
-            <label class="printer-device-row active">
-              <input type="radio" name="printerDevice" value="${escapeHtml(settings.printerDevice)}" checked />
-              <span>
-                <b>${escapeHtml(settings.printerDevice)}</b>
-                <small>${escapeHtml(settings.printerDeviceId || "Bluetooth tersimpan")}</small>
-              </span>
-            </label>
-          ` : `
-            <div class="printer-device-empty">
-              <strong>Belum ada printer tersambung</strong>
-              <span>Tekan Pindai untuk memilih printer Bluetooth dari perangkat ini.</span>
-            </div>
-          `}
-        </div>
-        <button class="btn accent printer-submit" type="submit">Atur Printer</button>
-      </form>
     </section>
   `;
 }

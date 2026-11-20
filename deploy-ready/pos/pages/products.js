@@ -83,7 +83,7 @@ function productSelect(storageKey, options, selected) {
 }
 
 function productMasterCard(product) {
-  const photo = mediaImageTag(product.imageName, `Foto ${product.name}`, "product-master-thumb", 120);
+  const photo = mediaImageTag(productPhotoSource(product.imageName), `Foto ${product.name}`, "product-master-thumb", 120);
   return `
     <article class="product-master-row ${product.active ? "" : "inactive"} ${product.soldOut ? "soldout" : ""}">
       <div class="product-master-main">
