@@ -9755,7 +9755,8 @@ function renderCartSuccess() {
         <span>Total</span><b>${money(result.total)}</b>
         ${result.paid ? `<span>Uang diterima</span><b>${money(result.receivedAmount || 0)}</b><span>Kembalian</span><b>${money(result.changeAmount || 0)}</b>` : `<span>Status bayar</span><b>Bayar nanti</b>`}
       </div>
-      ${result.paid ? `<button class="btn receipt-success-btn" onclick="printLastReceipt()">Print struk</button>` : ""}
+      ${result.paid ? `<button class="btn receipt-success-btn" type="button" onclick="printLastReceipt()">Struk Pembayaran</button>` : ""}
+      ${result.orderId ? kitchenPrintButtons(result.orderId, "receipt-success-btn") : ""}
       <button class="btn green new-sale-success-btn" onclick="startNewSale()">Transaksi Baru</button>
     </div>
   `;
@@ -12956,6 +12957,13 @@ function printOrderCardReceipt(id) {
   printReceiptOrder(order);
 }
 
+function kitchenPrintButtons(orderId, className) {
+  return [["kitchen1", "A"], ["kitchen2", "B"]].map(([kind, label]) => `
+    <button class="btn ${className}" type="button" title="Tanpa harga"
+      onclick="event.preventDefault(); event.stopPropagation(); printKitchenOrder(${escapeHtml(JSON.stringify(orderId))}, '${kind}')">Struk Dapur ${label}</button>
+  `).join("");
+}
+
 function printKitchenOrder(id, kind) {
   if (kind !== "kitchen1" && kind !== "kitchen2") return;
   const order = state.orders.find(item => item.id === id);
@@ -14410,11 +14418,8 @@ function orderCenterCard(order, options = {}) {
   const actions = [
     options.contact?.actions,
     order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan" ? `<button class="btn green" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>` : "",
-    order.paymentStatus === "Lunas" ? `<button class="btn green orders-print-receipt-btn" type="button" title="Struk pelanggan" onclick="event.preventDefault(); event.stopPropagation(); printOrderCardReceipt('${order.id}')">Print Struk</button>` : "",
-    order.status !== "Dibatalkan" && (order.items || order.cart || []).length ? ["kitchen1", "kitchen2"].map((kind, index) => `
-      <button class="btn orders-kitchen-print-btn" type="button" title="Tanpa harga"
-        onclick="event.preventDefault(); event.stopPropagation(); printKitchenOrder(${escapeHtml(JSON.stringify(order.id))}, '${kind}')">Struk Dapur ${index + 1}</button>`
-    ).join("") : "",
+    order.paymentStatus === "Lunas" ? `<button class="btn green orders-print-receipt-btn" type="button" title="Struk pelanggan" onclick="event.preventDefault(); event.stopPropagation(); printOrderCardReceipt('${order.id}')">Struk Pembayaran</button>` : "",
+    order.status !== "Dibatalkan" && (order.items || order.cart || []).length ? kitchenPrintButtons(order.id, "orders-kitchen-print-btn") : "",
     canCorrectOrder(order) ? `<button class="btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); openOrderCorrection('${order.id}')">Koreksi Pesanan</button>` : "",
     canMoveOrderTable(order) ? `<button class="btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); openMoveOrderTableDialog('${order.id}', ${options.returnToUnpaid ? "'unpaid'" : "'orders'"})">Pindahkan Meja</button>` : "",
     canCancelOrder(order) ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openCancelOrderDialog('${order.id}', ${options.returnToUnpaid ? "true" : "false"})">Batalkan</button>` : "",

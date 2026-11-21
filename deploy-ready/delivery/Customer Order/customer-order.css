@@ -746,23 +746,35 @@
   gap: 14px;
   padding: 40px 24px;
   text-align: center;
-  background: radial-gradient(ellipse at top, #ffffff, #f0f5fd);
+  background: radial-gradient(ellipse at top, #ffffff, #fcece9);
 }
 
 .customer-home-status-sync-spinner {
   width: 38px;
   height: 38px;
   margin-bottom: 8px;
-  border: 3px solid #dce6f2;
-  border-top-color: #2f5592;
-  border-right-color: #dfbd7b;
+  border: 3px solid #f2d4d1;
+  border-top-color: #9f0a1d;
+  border-right-color: #d95759;
   border-radius: 50%;
   animation: customerHomeMapLoadingSpin 1s linear infinite;
 }
 
-.customer-home-status-sync strong { color: #234d7a; font-size: 1rem; }
-.customer-home-status-sync p { margin: 0; max-width: 30ch; color: #52667f; line-height: 1.6; }
-.customer-home-status-sync small { color: #75859a; }
+.customer-home-status-sync strong { color: #9f0a1d; font-size: 1rem; }
+.customer-home-status-sync p { margin: 0; max-width: 30ch; color: #53322f; line-height: 1.6; }
+.customer-home-status-sync small { color: #735451; }
+@media (prefers-reduced-motion: reduce) {
+  .customer-home-status-sync-spinner { animation: none; }
+}
+
+.self-order-main.success.so-takeaway-success.customer-home-cash-status.is-delivery {
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  background: var(--pizzain-canvas, #fff8f5);
+}
+.self-order-app:has(> .customer-home-cash-status.is-delivery) {
+  background: var(--pizzain-canvas, #fff8f5);
+}
+
 
 @keyframes customerHomeMapLoadingSpin {
   to { transform: rotate(360deg); }

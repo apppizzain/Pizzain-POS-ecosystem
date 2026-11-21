@@ -1968,9 +1968,9 @@
       : delivery ? (order.confirmedAt ? "Pesananmu sudah diteruskan ke dapur." : "Menunggu kurir memproses pesananmu.")
       : order.confirmedAt ? "Kasir sudah menerima pesananmu." : "Menunggu kasir menerima pesananmu.";
     const paymentCopy = delivery ? "Bayar ke kurir" : homeIsPaid(order) ? "Lunas" : "Bayar saat ambil di outlet";
-    return `<main class="self-order-main success so-takeaway-success customer-home-cash-status">
+    return `<main class="self-order-main success so-takeaway-success customer-home-cash-status${delivery ? " is-delivery" : ""}">
       <section class="self-order-success-card so-takeaway-status-card ${homeIsPaid(order) ? "is-paid" : "is-pending"}">
-        ${window.SOTakeaway.renderHero({ title: cancelled ? "Pesanan dibatalkan" : "Pesanan berhasil dibuat", note: "", tone: cancelled ? "cancelled" : "waiting" })}
+        ${window.SOTakeaway.renderHero({ title: cancelled ? "Pesanan dibatalkan" : delivery && status === "COMPLETED" ? "Pesanan terkirim" : "Pesanan berhasil dibuat", note: "", tone: cancelled ? "cancelled" : "waiting" })}
         ${window.SOTakeaway.renderDetails({ number: order.number, customer: order.customer, total: homeOrderTotal(order), order, paymentCopy })}
         ${!cancelled && delivery && ["SEARCHING_DRIVER", "NO_DRIVER_AVAILABLE"].includes(status) ? homeRenderDriverSearchPanel(order) : ""}
         <section class="customer-home-progress-card" aria-label="Status pesanan terkini">
