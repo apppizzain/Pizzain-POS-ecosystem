@@ -2198,9 +2198,16 @@
   function homeRenderStatusSync() {
     const failed = homeStatusRefreshFailed;
     return `<main class="self-order-main success customer-home-status">
-      <section class="customer-home-status-sync ${failed ? "is-failed" : "is-refreshing"}">
-        <span class="customer-home-status-sync-icon" aria-hidden="true">${navIcon("sync")}</span>
-        <strong role="status">${failed ? "Status belum diperbarui" : "Memeriksa status pesanan"}</strong>
+      <section class="customer-home-status-sync">
+        <span class="customer-home-status-sync-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path d="M17 26H8a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7"/>
+            <path d="M10.5 11h9M10.5 16h5.5M10.5 21h3"/>
+            <circle cx="23" cy="22" r="6"/>
+            <path d="M23 19v3.5l2 1"/>
+          </svg>
+        </span>
+        <strong role="status">${failed ? "Status belum diperbarui" : "Memperbarui status pesanan..."}</strong>
         ${failed ? '<button class="self-order-secondary" type="button" onclick="CustomerOrder.refreshStatus()">Coba lagi</button>' : ""}
       </section>${homeRenderSupportContact()}</main>`;
   }
