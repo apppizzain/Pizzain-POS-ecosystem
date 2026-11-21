@@ -72,11 +72,11 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   box-shadow: 0 0 0 26px rgba(255, 255, 255, .025), 0 0 0 58px rgba(255, 255, 255, .014);
 }
 
-.fresin-gateway-eyebrow { flex: none; display: flex; align-items: center; gap: 7px; margin-top: clamp(12px, 2.6dvh, 20px); color: #e0edff; font-size: 14px; letter-spacing: .3px; font-weight: 600; }
+.fresin-gateway-eyebrow { flex: none; display: flex; align-items: center; gap: 7px; margin-top: clamp(12px, 2.6dvh, 20px); color: #fff3e8; font-size: 14px; letter-spacing: .3px; font-weight: 600; }
 .fresin-gateway-hero h1 { flex: none; position: relative; z-index: 1; margin: clamp(10px, 1.9dvh, 18px) 0 1px; color: #fff; font-family: "Fresin Nunito", ui-rounded, system-ui, sans-serif; font-size: clamp(36px, 10vw, 46px); line-height: 1.05; letter-spacing: -1.7px; font-weight: 900; text-shadow: 0 3px 0 rgba(0, 30, 79, .15); animation: fresinGatewayTitle 5.2s ease-in-out infinite; }
 .fresin-gateway-app-word { color: #fff1d8; }
-.fresin-gateway-description { flex: none; position: relative; z-index: 1; max-width: 100%; color: #cbdff7; font-size: 11px; line-height: 1.35; letter-spacing: 0; white-space: nowrap; }
-.fresin-gateway-description strong { color: #e6effb; font-weight: 650; }
+.fresin-gateway-description { flex: none; position: relative; z-index: 1; max-width: 100%; color: #ffe5dd; font-size: 11px; line-height: 1.35; letter-spacing: 0; white-space: nowrap; }
+.fresin-gateway-description strong { color: #fff2e9; font-weight: 650; }
 .fresin-gateway-hero p { flex: none; position: relative; z-index: 1; display: block; margin: auto 0 0; max-width: calc(100% - 82px); padding: 0; border: 0; background: transparent; color: #fff; font-family: inherit; font-size: 17px; font-style: normal; line-height: 1.45; font-weight: 700; letter-spacing: -.2px; white-space: nowrap; text-shadow: 0 2px 6px rgba(0, 20, 60, .2); }
 .fresin-gateway-hero-tagline>span { display: inline-block; }
 .fresin-gateway-tagline-easy { animation: fresinGatewayFloat 3.8s ease-in-out infinite; }
@@ -114,7 +114,7 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 .fresin-gateway-footer { flex: none; margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 6px; border-top: 1px solid #e1e7f0; }
 .fresin-gateway-footer>span { display: flex; align-items: center; gap: 5px; min-width: 0; color: #7b899d; font-size: 11px; }
 .fresin-gateway-footer svg { width: 14px; height: 14px; flex: none; }
-.fresin-gateway-footer button { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 5px 0 5px 8px; border: 0; background: transparent; color: #a11b32; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.fresin-gateway-footer button { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 5px 0 5px 8px; border: 0; background: transparent; color: #9f0a1d; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .fresin-gateway-support { width: 100%; max-width: 540px; margin: 0 auto; padding: 0 18px 18px; border: 0; background: transparent; box-shadow: none; scroll-margin-top: 16px; }
 .fresin-gateway-support[hidden] { display: none; }
 .fresin-gateway-support>.customer-home-support { margin: 0; }
@@ -245,7 +245,7 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 .fresin-gateway-secondary-choices { min-height: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .fresin-gateway-table .fresin-gateway-choice.dinein { display: grid; grid-template-columns: 50px minmax(0,1fr); grid-template-rows: 1fr auto; align-items: center; padding: 14px; gap: 10px 13px; border-color: #9abce5; background: radial-gradient(ellipse at 100% 0%,#dceaff 0%,transparent 62%),linear-gradient(120deg,#fffaf0,#f5f9ff); color: #174f88; border-radius: 22px; box-shadow: 0 12px 26px rgba(13,64,123,.19),0 3px 8px rgba(13,64,123,.06), inset 0 3px 0 #fff, inset 0 -3px 0 #c4daf5; }
 .fresin-gateway-table .fresin-gateway-choice.dinein:hover { border-color: #7fa9d8; background: linear-gradient(120deg,#fffaf0,#e7f1ff); color: #174f88; }
-.fresin-gateway-table .dinein .fresin-gateway-choice-icon { width: 50px; height: 50px; border-radius: 17px; background: #e0edff; color: #245f9e; border-color: #c3d9f4; box-shadow: inset 0 1px 0 #fff,0 4px 10px rgba(36,95,158,.08); }
+.fresin-gateway-table .dinein .fresin-gateway-choice-icon { width: 50px; height: 50px; border-radius: 17px; background: #fff3e8; color: #245f9e; border-color: #c3d9f4; box-shadow: inset 0 1px 0 #fff,0 4px 10px rgba(36,95,158,.08); }
 .fresin-gateway-table .dinein .fresin-gateway-choice-icon svg { width: 29px; height: 29px; }
 .fresin-gateway-table .dinein .fresin-gateway-choice-copy>strong { font-size: 25px; color: #163e6a; letter-spacing: -.7px; }
 .fresin-gateway-table .dinein .fresin-gateway-choice-copy>span { margin-top: 4px; font-size: 11px; line-height: 1.35; color: #5b7694; }
@@ -278,18 +278,18 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 .fresin-gateway-table .fresin-gateway-small-choice.delivery>strong { color: #70502b; }
 .fresin-gateway-table .fresin-gateway-small-choice>span:last-child { display: block; margin-top: 5px; color: #526f90; font-size: 10.5px; line-height: 1.35; }
 .fresin-gateway-table .fresin-gateway-small-choice.delivery>span:last-child { color: #7a6449; }
-.fresin-gateway-table-support { padding: 14px; border: 1px solid #e5c4cb; border-radius: 12px; background: #fbecee; color: #572432; box-shadow: 0 8px 18px rgba(92,33,48,.08); }
-.fresin-gateway-support-head { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 9px; margin-bottom: 10px; border-radius: 7px; background: #f2d5da; }
-.fresin-gateway-support-logo { display: grid; place-items: center; width: 34px; height: 34px; overflow: hidden; border: 1px solid #e5c4cb; border-radius: 10px; background: #fff; color: #812841; }
+.fresin-gateway-table-support { padding: 14px; border: 1px solid #edbeb7; border-radius: 12px; background: #fff0ec; color: #611a20; box-shadow: 0 8px 18px rgba(92,33,48,.08); }
+.fresin-gateway-support-head { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 9px; margin-bottom: 10px; border-radius: 7px; background: #f9d7d0; }
+.fresin-gateway-support-logo { display: grid; place-items: center; width: 34px; height: 34px; overflow: hidden; border: 1px solid #edbeb7; border-radius: 10px; background: #fff; color: #9f0a1d; }
 .fresin-gateway-support-logo img { width: 100%; height: 100%; object-fit: contain; }
 .fresin-gateway-support-logo svg { width: 21px; height: 21px; }
-.fresin-gateway-support-head strong { color: #812841; font-size: 14px; }
-.fresin-gateway-support-head p { margin: 2px 0 0; color: #694451; font-size: 12px; }
+.fresin-gateway-support-head strong { color: #9f0a1d; font-size: 14px; }
+.fresin-gateway-support-head p { margin: 2px 0 0; color: #754a46; font-size: 12px; }
 .fresin-gateway-table-support dl { margin: 0; display: grid; gap: 9px; font-size: 12px; }
 .fresin-gateway-table-support dl>div { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 8px; }
-.fresin-gateway-table-support dt { color: #694451; }
+.fresin-gateway-table-support dt { color: #754a46; }
 .fresin-gateway-table-support dd { margin: 0; overflow-wrap: anywhere; font-weight: 650; }
-.fresin-gateway-table-support a { color: #812841; text-underline-offset: 2px; }
+.fresin-gateway-table-support a { color: #9f0a1d; text-underline-offset: 2px; }
 @media (max-width:350px) {
   .fresin-gateway-table .dinein .fresin-gateway-choice-copy>strong { font-size: 22px; }
   .fresin-gateway-table .fresin-gateway-choice.dinein { padding: 10px 12px; gap: 7px 10px; }
@@ -535,14 +535,14 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 
 /* Pizzain customer ordering palette */
 :root {
-  --pizzain-wine: #7b233a;
-  --pizzain-ink: #321c23;
-  --pizzain-muted: #72565d;
-  --pizzain-line: #ead6d9;
-  --pizzain-rose: #faeef0;
-  --pizzain-canvas: #fcf7f6;
-  --pizzain-action: linear-gradient(135deg, #942e47, #762038);
-  --pizzain-hero: radial-gradient(ellipse at 85% 5%, #a34b5d 0%, transparent 60%), linear-gradient(140deg, #4b1426, #802a41);
+  --pizzain-red: #9f0a1d;
+  --pizzain-ink: #321817;
+  --pizzain-muted: #735451;
+  --pizzain-line: #efcfcb;
+  --pizzain-rose: #fcece9;
+  --pizzain-canvas: #fff8f5;
+  --pizzain-action: linear-gradient(135deg, #bc152a, #9f0a1d);
+  --pizzain-hero: radial-gradient(ellipse at 85% 5%, #e54a49 0%, transparent 60%), linear-gradient(140deg, #820316, #b91329);
 }
 
 :is(.app-shell.view-selforder, .view-selforder .content, .view-selforder .page, .self-order-app, .self-order-app.fresin-gateway) {
@@ -551,7 +551,7 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 }
 
 .self-order-app :is(.self-order-topbar, .self-order-bottom-nav, .customer-home-location-sheet) {
-  background: linear-gradient(145deg, #fffdfc, #fbefef);
+  background: linear-gradient(145deg, #fffdfc, #fff0eb);
   border-color: var(--pizzain-line);
   box-shadow: 0 5px 20px rgb(92 33 48 / .08);
 }
@@ -574,24 +574,24 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 }
 
 .self-order-app :is(.self-order-promo-cta, .self-order-menu-section-head button) {
-  color: var(--pizzain-wine);
+  color: var(--pizzain-red);
 }
 
 .self-order-app :is(.self-order-categories button, .self-order-icon-btn:not(.has-photo), .self-order-back, .self-order-secondary, .self-order-detail-qty button, .self-order-addon-stepper button) {
   background: var(--pizzain-rose);
-  color: var(--pizzain-wine);
+  color: var(--pizzain-red);
   border-color: var(--pizzain-line);
   box-shadow: none;
 }
 
 .self-order-app .self-order-categories button.active {
-  background: linear-gradient(145deg, #f9e7e9, #f0d5db);
-  border-color: #c78b99;
-  color: #6b1a31;
+  background: linear-gradient(145deg, #ffe7e2, #f8cbc6);
+  border-color: #db8a82;
+  color: #850719;
 }
 
 .self-order-app :is(.self-order-bottom-nav button, .self-order-bottom-nav button.active, .fresin-category-visual svg, .self-order-card-body b, .self-order-card-body small, .self-order-detail-panel > strong, .self-order-addon small, .customer-home-checkout-item > b, .customer-home-total-row strong, .customer-home-summary-card .total > strong) {
-  color: var(--pizzain-wine);
+  color: var(--pizzain-red);
 }
 
 .self-order-app :is(.self-order-primary, .self-order-floating-cart, .self-order-nav-icon, .customer-home-support-chip, .fresin-gateway-support-button, .fresin-gateway-dinein-action) {
@@ -614,25 +614,25 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 }
 
 .self-order-app :is(.self-order-card-media, .self-order-card-media .self-order-product-token, .self-order-detail-media .self-order-product-token, .self-order-cart-token) {
-  background: linear-gradient(150deg, #fff9f8, #f7e6e9);
-  color: var(--pizzain-wine);
+  background: linear-gradient(150deg, #fff9f8, #fbe4df);
+  color: var(--pizzain-red);
 }
 
 .self-order-app :is(.self-order-addon, .self-order-variant-option, .self-order-detail-qty, .self-order-checkout input, .self-order-checkout textarea, .self-order-item-note textarea, .customer-home-location-landmark textarea) {
   background: #fff8f8;
   border-color: var(--pizzain-line);
-  accent-color: var(--pizzain-wine);
+  accent-color: var(--pizzain-red);
 }
 
 .self-order-app :is(.self-order-addon.active, .self-order-variant-option:has(input:checked)) {
   background: var(--pizzain-rose);
-  border-color: #bf7d8d;
+  border-color: #d77970;
 }
 
 .self-order-app :is(.fresin-gateway-table-card, .fresin-gateway-choice.pickup, .fresin-gateway-table .fresin-gateway-choice.dinein, .fresin-gateway-table .fresin-gateway-small-choice.pickup, .self-order-cart-title) {
-  background: linear-gradient(145deg, #fff9f7, #f4dfe3);
+  background: linear-gradient(145deg, #fff9f7, #f9ddd7);
   border-color: var(--pizzain-line);
-  color: var(--pizzain-wine);
+  color: var(--pizzain-red);
   box-shadow: 0 6px 14px rgb(92 33 48 / .08);
 }
 
@@ -652,62 +652,88 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 }
 
 .self-order-app .fresin-gateway-order-card .fresin-gateway-choices > .fresin-gateway-choice {
-  background: linear-gradient(145deg, #edcdd6, #dfb2bf);
-  border-color: #e9c8d1;
+  background: linear-gradient(145deg, #ffece6, #f8cfc7);
+  border-color: #edbdb6;
 }
 
 .self-order-app .fresin-gateway-order-card .fresin-gateway-choices > .fresin-gateway-choice:hover {
-  background: #efcdd6;
-  border-color: #ce95a4;
+  background: #ffdad2;
+  border-color: #df948b;
 }
 
 .self-order-app .fresin-gateway-choices > .fresin-gateway-choice .fresin-gateway-choice-copy > strong {
-  color: var(--pizzain-wine);
+  color: var(--pizzain-red);
 }
 
 .self-order-app .fresin-gateway-choices > .fresin-gateway-choice .fresin-gateway-choice-icon {
-  background: #f3dbe2;
-  color: var(--pizzain-wine);
-  border-color: #efd5dc;
+  background: #fbded9;
+  color: var(--pizzain-red);
+  border-color: #edbdb6;
 }
 
-.self-order-app :is(.fresin-gateway-choice-arrow, .fresin-gateway-choice.pickup .fresin-gateway-choice-icon, .self-order-cart-count, .customer-home-progress.customer-home-statusbar > span.active) {
-  color: var(--pizzain-wine);
+.self-order-app :is(.fresin-gateway-choice-arrow, .self-order-cart-count, .customer-home-progress.customer-home-statusbar > span.active) {
+  color: var(--pizzain-red);
 }
 
 .self-order-app :is(.customer-home-progress.customer-home-statusbar > span.active > i, .so-takeaway-statusbar span.active i) {
   background: var(--pizzain-action);
-  border-color: var(--pizzain-wine);
+  border-color: var(--pizzain-red);
   color: #fff;
 }
 
 .self-order-app :is(button, input, textarea, select):focus-visible {
-  outline: 2px solid var(--pizzain-wine);
+  outline: 2px solid var(--pizzain-red);
   outline-offset: 2px;
 }
 
 .self-order-app .self-order-menu-section-head {
   background: var(--pizzain-action);
-  border-color: var(--pizzain-wine);
+  border-color: var(--pizzain-red);
 }
 
 .self-order-app .self-order-menu-section-head h3 {
   color: #fff1ce;
 }
 
-.self-order-app .fresin-service-strip.is-pickup {
-  background: linear-gradient(110deg, #f7e7bd, #fff5dc);
-  border-color: #e6cf98;
-  box-shadow: 0 5px 13px rgb(112 73 34 / .08), inset 0 1px 0 #fffaf0;
+.self-order-app .fresin-service-strip {
+  background: linear-gradient(110deg, #f9d9d2, var(--pizzain-rose));
+  border-color: var(--pizzain-line);
+  box-shadow: 0 5px 13px rgb(159 10 29 / .08), inset 0 1px 0 #fff;
 }
 
-.self-order-app .fresin-service-strip.is-pickup :is(.fresin-service-strip-copy, .fresin-service-strip-icon, button) {
-  color: #734230;
+.self-order-app .fresin-service-strip :is(.fresin-service-strip-copy, .fresin-service-strip-icon, button) {
+  color: var(--pizzain-red);
 }
 
-.self-order-app .fresin-service-strip.is-pickup :is(.fresin-service-strip-icon, button) {
-  background: #fffaf0;
-  border-color: #ead7aa;
+.self-order-app .fresin-service-strip :is(.fresin-service-strip-icon, button) {
+  background: #fffaf7;
+  border-color: var(--pizzain-line);
+}
+
+.self-order-app :is(.fresin-checkout-service, .self-order-upsell-card, .self-order-table-payment .self-order-payment-head, .self-order-payment-methods button.active) {
+  background: var(--pizzain-rose);
+  border-color: var(--pizzain-line);
+}
+
+.self-order-app :is(.fresin-checkout-service-icon, .fresin-checkout-service strong, .self-order-upsell-head h4, .self-order-table-payment .self-order-payment-head > h3, .self-order-payment-methods button.active) {
+  color: var(--pizzain-red);
+}
+
+.self-order-app :is(.fresin-checkout-service small, .self-order-upsell-head p, .self-order-table-payment .self-order-payment-head > span, .self-order-table-payment .self-order-checkout label > span) {
+  color: var(--pizzain-muted);
+}
+
+.self-order-app :is(.self-order-upsell-item button, .self-order-card-media .self-order-selected-chip),
+.self-order-crust-dialog .self-order-crust-header {
+  background: var(--pizzain-action);
+  color: #fff;
+}
+
+.self-order-app.fresin-gateway :is(.fresin-service-art, .delivery .fresin-service-art),
+.self-order-app .fresin-checkout-art .fresin-service-art {
+  background: linear-gradient(145deg, #fff9f6, #f9d9d2);
+  border-color: var(--pizzain-line);
+  color: var(--pizzain-red);
 }
 
 .fresin-category-chip .self-order-category-label {
@@ -718,4 +744,40 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   line-height: 1.2;
   text-align: center;
   white-space: nowrap;
+}
+
+.self-order-app .fresin-gateway-choices > :is(.pickup, .delivery) .fresin-gateway-choice-icon {
+  background: linear-gradient(145deg, #c02639, #a30b24);
+  border-color: #a30b24;
+  color: #fff4e5;
+  box-shadow: 0 5px 12px rgba(145, 15, 36, .18);
+}
+
+.self-order-app .customer-home-support {
+  background: #fff0ed;
+  border-color: #e9b9b6;
+  box-shadow: 0 8px 18px rgba(145, 15, 36, .08);
+}
+
+.customer-home-support .customer-home-support-head { background: #f6d9d5; }
+.customer-home-support :is(.customer-home-support-copy strong, .customer-home-support-close) { color: #961b30; }
+.customer-home-support :is(.customer-home-support-copy p, .customer-home-support-item span, .customer-home-support-item.is-muted strong) { color: #795052; }
+.customer-home-support .customer-home-support-item strong { color: #49292a; }
+.customer-home-support .customer-home-support-close { background: #fff5f2; border-color: #e6b8b5; }
+.customer-home-support .customer-home-support-close:hover { background: #f9e1de; }
+
+.self-order-app .self-order-floating-cart.has-merchant-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.self-order-floating-cart .self-order-merchant-notice {
+  grid-column: 1 / -1;
+  color: #fff4e5;
+  font-size: .75rem;
+  line-height: 1.25;
+  text-align: left;
 }
