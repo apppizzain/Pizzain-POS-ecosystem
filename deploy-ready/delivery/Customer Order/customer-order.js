@@ -619,7 +619,7 @@
   let homeMapLibreMarker = null;
 
   function homeGeoapifyApiKey() {
-    return String(window.GEOAPIFY_API_KEY || window.KASIRIN_GEOAPIFY_API_KEY || "").trim();
+    return String(window.GEOAPIFY_API_KEY || window.KASIRIN_GEOAPIFY_API_KEY || state.settings?.deliveryGeoapifyApiKey || "").trim();
   }
 
   function homeGeoapifyStyleUrl() {
