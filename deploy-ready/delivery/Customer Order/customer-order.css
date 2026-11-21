@@ -742,29 +742,51 @@
 
 .customer-home-status-sync {
   display: grid;
-  justify-items: center;
-  gap: 14px;
-  padding: 40px 24px;
-  text-align: center;
-  background: radial-gradient(ellipse at top, #ffffff, #fcece9);
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  justify-self: center;
+  gap: 12px 14px;
+  width: min(100%, 420px);
+  padding: 16px;
+  border: 1px solid #efcfcb;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #fffdfa, #fff0eb);
+  box-shadow: 0 10px 28px rgb(125 26 37 / .10), inset 0 1px 0 #fff;
 }
 
-.customer-home-status-sync-spinner {
-  width: 38px;
-  height: 38px;
-  margin-bottom: 8px;
-  border: 3px solid #f2d4d1;
-  border-top-color: #9f0a1d;
-  border-right-color: #d95759;
-  border-radius: 50%;
-  animation: customerHomeMapLoadingSpin 1s linear infinite;
+.customer-home-status-sync-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--pizzain-action, linear-gradient(135deg, #bc152a, #9f0a1d));
+  color: #fff4e5;
+  box-shadow: 0 5px 12px rgb(145 15 36 / .18);
 }
-
-.customer-home-status-sync strong { color: #9f0a1d; font-size: 1rem; }
-.customer-home-status-sync p { margin: 0; max-width: 30ch; color: #53322f; line-height: 1.6; }
-.customer-home-status-sync small { color: #735451; }
+.customer-home-status-sync-icon svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.customer-home-status-sync.is-refreshing svg {
+  animation: customerHomeMapLoadingSpin 2s ease-in-out infinite;
+}
+.customer-home-status-sync strong {
+  color: var(--pizzain-red, #9f0a1d);
+  font-size: clamp(.95rem, 4.2vw, 1.125rem);
+  line-height: 1.3;
+}
+.customer-home-status-sync .self-order-secondary {
+  grid-column: 2;
+  justify-self: start;
+}
 @media (prefers-reduced-motion: reduce) {
-  .customer-home-status-sync-spinner { animation: none; }
+  .customer-home-status-sync.is-refreshing svg { animation: none; }
 }
 
 .self-order-main.success.so-takeaway-success.customer-home-cash-status.is-delivery {
