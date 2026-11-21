@@ -3,17 +3,6 @@
   "trailingSlash": true,
   "redirects": [
     {
-      "source": "/order/",
-      "has": [
-        {
-          "type": "host",
-          "value": "pizzain.id"
-        }
-      ],
-      "destination": "/microsite/",
-      "permanent": false
-    },
-    {
       "source": "/self-order/",
       "destination": "/order/",
       "permanent": false
