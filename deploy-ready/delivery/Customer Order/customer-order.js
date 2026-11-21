@@ -22,8 +22,8 @@
   const HOME_TEMP_DUMMY_PAYMENT_MARKER = "TEST DRIVER";
   const HOME_CONFIG = {
     defaultDeliveryFee: 10000,
-    storeLatitude: null,
-    storeLongitude: null,
+    storeLatitude: 5.3792658,
+    storeLongitude: 95.9585395,
     baseDeliveryRadiusKm: 4,
     baseDeliveryFee: 10000,
     extraDeliveryFeePerKm: 2500,
@@ -42,6 +42,9 @@
   let homeAutoLocationRequested = false;
   let homeDriverSearchTickTimer = null;
   const homePaymentRequests = new Set();
+  const HOME_ROUTE_CACHE_KEY = "pizzain_delivery_route_v1";
+  let homeRouteRequest = null;
+  let homeRouteSnapshot = null;
 
   function homeParams() {
     try {
@@ -506,31 +509,60 @@
     return checkout.locationSource === "gps" ? mapInitialZoom - 1 : mapInitialZoom;
   }
 
-  function homeDistanceKm(fromLatitude, fromLongitude, toLatitude, toLongitude) {
-    const toRadians = degrees => degrees * Math.PI / 180;
-    const earthRadiusKm = 6371;
-    const deltaLatitude = toRadians(toLatitude - fromLatitude);
-    const deltaLongitude = toRadians(toLongitude - fromLongitude);
-    const startLatitude = toRadians(fromLatitude);
-    const endLatitude = toRadians(toLatitude);
-    const haversine = Math.sin(deltaLatitude / 2) ** 2
-      + Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(deltaLongitude / 2) ** 2;
-    return 2 * earthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  function homeDeliveryRouteKey(checkout) {
+    if (checkout.method !== "DELIVERY" || checkout.locationStatus !== "ready") return "";
+    const latitude = homeCoordinate(checkout.latitude);
+    const longitude = homeCoordinate(checkout.longitude);
+    return latitude === null || longitude === null ? "" : `${latitude},${longitude}`;
   }
 
   function homeDeliveryQuote(checkout = homeCheckout()) {
-    const latitude = homeCoordinate(checkout.latitude);
-    const longitude = homeCoordinate(checkout.longitude);
+    const key = homeDeliveryRouteKey(checkout);
+    if (!key) return { distanceKm: null, fee: 0, extraKm: 0 };
+    let saved = homeRouteSnapshot;
+    if (!saved) {
+      try { saved = JSON.parse(sessionStorage.getItem(HOME_ROUTE_CACHE_KEY) || "null"); } catch {}
+    }
+    const now = Date.now();
+    if (!saved || saved.key !== key || saved.at > now || now - saved.at >= 30 * 60 * 1000
+      || !Number.isSafeInteger(saved.distanceMeters) || saved.distanceMeters < 0) {
+      return { distanceKm: null, fee: 0, extraKm: 0 };
+    }
     const config = homeDeliveryConfig();
-    if (latitude === null || longitude === null) return { distanceKm: null, fee: 0, extraKm: 0 };
-    if (config.storeLatitude === null || config.storeLongitude === null) return { distanceKm: null, fee: 0, extraKm: 0 };
-    const distanceKm = homeDistanceKm(config.storeLatitude, config.storeLongitude, latitude, longitude);
+    const distanceKm = saved.distanceMeters / 1000;
     const extraKm = Math.max(0, Math.ceil(distanceKm - config.baseRadiusKm));
-    return {
-      distanceKm,
-      fee: config.baseFee + (extraKm * config.extraFeePerKm),
-      extraKm
-    };
+    return { distanceKm, distanceMeters: saved.distanceMeters, fee: config.baseFee + extraKm * config.extraFeePerKm, extraKm };
+  }
+
+  async function homeEnsureDeliveryRoute(checkout) {
+    const key = homeDeliveryRouteKey(checkout);
+    if (!key || Number.isFinite(homeDeliveryQuote(checkout).distanceKm)) return;
+    if (homeRouteRequest?.key === key) return homeRouteRequest.promise;
+    homeRouteRequest?.controller.abort();
+    const controller = new AbortController();
+    const promise = (async () => {
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/pizzain-delivery-route`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ latitude: homeCoordinate(checkout.latitude), longitude: homeCoordinate(checkout.longitude) }),
+          signal: controller.signal
+        });
+        if (!response.ok) return;
+        const { distanceMeters } = await response.json();
+        if (!Number.isSafeInteger(distanceMeters) || distanceMeters < 0 || homeDeliveryRouteKey(homeCheckout()) !== key) return;
+        homeRouteSnapshot = { key, distanceMeters, at: Date.now() };
+        try { sessionStorage.setItem(HOME_ROUTE_CACHE_KEY, JSON.stringify(homeRouteSnapshot)); } catch {}
+      } catch {
+        // The location step keeps the user on the same pin so they can retry.
+      } finally {
+        clearTimeout(timeout);
+        if (homeRouteRequest?.controller === controller) homeRouteRequest = null;
+      }
+    })();
+    homeRouteRequest = { key, controller, promise };
+    return promise;
   }
 
   function homeCalculateDeliveryFee(checkout = homeCheckout()) {
@@ -1299,13 +1331,13 @@
         ${homeCheckoutFieldError("Location")}
         <label class="customer-home-location-landmark"><span class="sr-only">Patokan alamat</span><textarea id="customerHomeAddressNote" required aria-required="true" rows="2" placeholder="Patokan alamat, contoh: rumah pagar hitam, depan apotek (wajib)" oninput="CustomerOrder.captureCheckout('AddressNote')" ${homeCheckoutInvalidAttrs("AddressNote")}>${homeEscape(checkout.addressNote || "")}</textarea></label>
         ${homeCheckoutFieldError("AddressNote")}
-        <button class="self-order-primary self-order-cart-pay customer-home-location-next" type="button" onclick="CustomerOrder.continueDeliveryLocation()">Lanjut</button>
+        <button class="self-order-primary self-order-cart-pay customer-home-location-next" type="button" onclick="CustomerOrder.continueDeliveryLocation()" ${homeRouteRequest?.key === homeDeliveryRouteKey(checkout) ? "disabled" : ""}>${homeRouteRequest?.key === homeDeliveryRouteKey(checkout) ? "Menghitung rute…" : "Lanjut"}</button>
         ${selfOrderSubmitError ? `<p class="self-order-submit-error" role="alert">${homeEscape(selfOrderSubmitError)}</p>` : ""}
       </section>
     </main>`;
   }
 
-  function homeContinueDeliveryLocation() {
+  async function homeContinueDeliveryLocation() {
     CustomerOrder.captureCheckout('AddressNote');
     const checkout = homeCheckout();
     const errors = {};
@@ -1315,8 +1347,15 @@
     homeCheckoutValidationAttempted = true;
     selfOrderSubmitError = "";
     if (Object.keys(errors).length) { render(); return; }
-    if (!Number.isFinite(homeDeliveryQuote(checkout).distanceKm)) {
-      selfOrderSubmitError = "Lokasi outlet belum diatur. Pilih Ambil di toko atau hubungi outlet.";
+    const routeKey = homeDeliveryRouteKey(checkout);
+    if (homeRouteRequest?.key === routeKey) return;
+    const request = homeEnsureDeliveryRoute(checkout);
+    if (homeRouteRequest?.key === routeKey) render();
+    await request;
+    const current = homeCheckout();
+    if (homeDeliveryRouteKey(current) !== routeKey || current.deliveryStage === "details") return;
+    if (!Number.isFinite(homeDeliveryQuote(current).distanceKm)) {
+      selfOrderSubmitError = "Rute motor belum bisa dihitung. Coba lagi.";
       render();
       return;
     }
@@ -1483,8 +1522,9 @@
       return;
     }
     const deliveryQuote = checkout.method === "DELIVERY" ? homeDeliveryQuote(checkout) : null;
-    if (checkout.method === "DELIVERY" && (!Number.isFinite(deliveryQuote?.distanceKm) )) {
-      selfOrderSubmitError = "Tetapkan lokasi pengantaran untuk menghitung ongkir.";
+    if (checkout.method === "DELIVERY" && !Number.isFinite(deliveryQuote?.distanceKm)) {
+      homeSetCheckout({ deliveryStage: "location" });
+      selfOrderSubmitError = "Hitung ulang rute pengantaran untuk melanjutkan.";
       render();
       return;
     }
@@ -1527,6 +1567,7 @@
         deliveryLocation: checkout.method === "DELIVERY" ? mapsUrl : "",
         deliveryLatitude: checkout.method === "DELIVERY" ? latitude : null,
         deliveryLongitude: checkout.method === "DELIVERY" ? longitude : null,
+        deliveryDistanceMeters: deliveryQuote?.distanceMeters ?? null,
         serviceInfo: checkout.method === "DELIVERY" ? "Delivery" : homeParams().search.get("origin") === "outlet" ? "Takeaway Outlet" : "Takeaway-Rumah",
         note: noteParts.join("\n"),
         status: "Pesanan Baru",

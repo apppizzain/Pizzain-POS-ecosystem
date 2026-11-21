@@ -4927,7 +4927,8 @@ async function syncOrderToSupabase(order, options = {}) {
       payment_provider: order.paymentProvider, public_order_token: order.publicOrderToken || "",
       delivery_address: order.deliveryAddress || "", delivery_note: order.deliveryNote || "",
       delivery_location: order.deliveryLocation || "", delivery_latitude: order.deliveryLatitude ?? null,
-      delivery_longitude: order.deliveryLongitude ?? null
+      delivery_longitude: order.deliveryLongitude ?? null,
+      ...(Number.isSafeInteger(order.deliveryDistanceMeters) ? { delivery_distance_meters: order.deliveryDistanceMeters } : {})
     });
     const { data: orderRows, error: orderError } = await upsertSupabaseOrderPayload(orderPayload, order);
     if (orderError) throw orderError;
