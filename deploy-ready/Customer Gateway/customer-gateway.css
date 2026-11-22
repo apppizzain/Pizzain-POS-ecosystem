@@ -736,12 +736,12 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   color: var(--pizzain-red);
 }
 
-.self-order-app .fresin-service-strip.is-pickup .fresin-checkout-art {
+.self-order-app .fresin-service-strip:is(.is-pickup, .is-delivery) .fresin-checkout-art {
   background: linear-gradient(145deg, #fff9f6, #f9d9d2);
   border-color: var(--pizzain-line);
 }
 
-.self-order-app .fresin-service-strip.is-pickup .fresin-checkout-art > .fresin-service-art {
+.self-order-app .fresin-service-strip:is(.is-pickup, .is-delivery) .fresin-checkout-art > .fresin-service-art {
   border: 0;
   border-radius: 0;
   background: transparent;
