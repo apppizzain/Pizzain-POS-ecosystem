@@ -3436,7 +3436,8 @@ function orderNavigationBadgeCount(id) {
   if (!["orders", "kitchen"].includes(id)) return 0;
   const pending = (state.orders || []).filter(order => isNewOrderStatus(order) && !orderIsCancelled(order) && orderVisibleInPosOrderList(order));
   if (id === "orders") return pending.length;
-  return pending.filter(order => orderNeedsTakeawayCashier(order)
+  const dismissed = typeof kitchenDismissedTakeawayNotices === "function" ? kitchenDismissedTakeawayNotices() : new Set();
+  return pending.filter(order => (orderNeedsTakeawayCashier(order) && !dismissed.has(order.supabaseId))
     || (typeof kitchenOrderIsVisible === "function" && kitchenOrderIsVisible(order, "Pesanan Baru", ["Pesanan Baru"]))).length;
 }
 
@@ -8088,14 +8089,14 @@ function renderAccessDenied() {
 }
 
 function renderStaffLoginScreen() {
-  const loginLogo = String(state.settings?.receiptLogoDataUrl || state.settings?.selfOrderProfileImageDataUrl || "").trim();
+  const branding = selfOrderBranding();
   const appName = String(state.settings?.receiptStoreName || state.settings?.selfOrderAppName || "Kasirin!").trim();
   const outletName = String(state.outlet || state.settings?.selfOrderOutletName || "Outlet Utama").trim();
   return `
     <main class="staff-lock-screen">
       <section class="staff-lock-card">
         <div class="staff-lock-brand">
-          <span class="staff-lock-logo">${loginLogo ? mediaImageTag(loginLogo, "Logo usaha", "", 320) : staffInitials(appName)}</span>
+          <span class="staff-lock-logo">${mediaImageTag(branding.image, "Logo usaha", "", 240, "eager", branding.fallbackImage)}</span>
           <div class="staff-lock-heading">
             <small>Kasirin POS</small>
             <h1>${escapeHtml(appName)}</h1>

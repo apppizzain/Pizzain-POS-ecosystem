@@ -34,6 +34,25 @@ function kitchenOrderIsVisible(order, filter, visibleStatuses) {
   return filter === "Semua" ? visibleStatuses.includes(order.status) : order.status === filter;
 }
 
+const KITCHEN_DISMISSED_TAKEAWAY_NOTICES_KEY = "pizzain_kitchen_dismissed_takeaway_notices";
+
+function kitchenDismissedTakeawayNotices() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(KITCHEN_DISMISSED_TAKEAWAY_NOTICES_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function dismissKitchenTakeawayNotice(orderId) {
+  const order = state.orders.find(candidate => candidate.supabaseId === orderId);
+  if (!order || !orderNeedsTakeawayCashier(order)) return;
+  const dismissed = kitchenDismissedTakeawayNotices();
+  dismissed.add(orderId);
+  localStorage.setItem(KITCHEN_DISMISSED_TAKEAWAY_NOTICES_KEY, JSON.stringify([...dismissed].slice(-300)));
+  render();
+}
+
 function renderKitchenTakeawayNotice(order) {
   const customer = customerDisplayName(order.customer) || "-";
   return `<article class="card kitchen-order-card kitchen-takeaway-notice" role="status" aria-label="Pemberitahuan takeaway menunggu kasir">
@@ -42,6 +61,7 @@ function renderKitchenTakeawayNotice(order) {
       <span class="pill kitchen-notice-status">Menunggu diterima kasir</span>
     </div>
     <div class="kitchen-order-meta"><span class="kitchen-order-time">${dateTime(order.createdAt)}</span><span class="pill">${escapeHtml(displayOrderNumber(order.number))}</span><span class="pill">Pemberitahuan takeaway</span></div>
+    ${order.supabaseId ? `<div class="kitchen-order-meta"><button type="button" class="pill" data-notice-order-id="${escapeHtml(order.supabaseId)}" onclick="dismissKitchenTakeawayNotice(this.dataset.noticeOrderId)">Sembunyikan pemberitahuan</button></div>` : ""}
     ${order.pickupTime ? `<p class="orders-item-group-note so-takeaway-pickup-note"><b>Jam pengambilan:</b> ${escapeHtml(order.pickupTime)}</p>` : ""}
   </article>`;
 }
@@ -62,8 +82,9 @@ function renderKitchen() {
     ? stockSoldOutCount()
     : state.products.filter(product => product.soldOut).length;
   const kitchenStatuses = ["Pesanan Baru", "Sedang Disiapkan", "Selesai"];
+  const dismissed = kitchenDismissedTakeawayNotices();
   const pendingTakeawayNotices = typeof orderNeedsTakeawayCashier === "function"
-    ? state.orders.filter(orderNeedsTakeawayCashier).sort(kitchenOrderStableSort) : [];
+    ? state.orders.filter(order => orderNeedsTakeawayCashier(order) && !dismissed.has(order.supabaseId)).sort(kitchenOrderStableSort) : [];
   const takeawayNotices = ["Semua", "Pesanan Baru", "Pemberitahuan Takeaway"].includes(kitchenFilter) ? pendingTakeawayNotices : [];
   const orders = state.orders
     .filter(order => {
