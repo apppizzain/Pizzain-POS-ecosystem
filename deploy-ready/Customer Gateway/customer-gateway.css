@@ -607,7 +607,7 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   box-shadow: none;
 }
 
-.self-order-app :is(.self-order-card, .self-order-detail-panel, .self-order-payment-shell, .self-order-cart-item, .self-order-cart-item.has-photo, .customer-home-summary-card, .customer-home-review, .customer-home-checkout-items, .so-takeaway-status-card) {
+.self-order-app :is(.self-order-card, .self-order-detail-panel, .self-order-payment-shell, .self-order-cart-item, .self-order-cart-item.has-photo, .customer-home-summary-card, .customer-home-review, .customer-home-checkout-items) {
   background: #fffdfc;
   border-color: var(--pizzain-line);
   box-shadow: 0 5px 15px rgb(92 33 48 / .07);
@@ -780,4 +780,61 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   font-size: .75rem;
   line-height: 1.25;
   text-align: left;
+}
+
+
+/* Pizzain delivery summary and progress match its driver card. */
+.self-order-app :is(.customer-home-cash-status.is-delivery .so-takeaway-detail-card, .customer-home-cash-status.is-delivery .customer-home-progress-card, .customer-home-status .customer-home-summary-card, .customer-home-status .customer-home-status-panel) {
+  border-color: var(--pizzain-line);
+  background: linear-gradient(135deg, #fff, #fff0eb);
+  box-shadow: 0 9px 22px #8d15250a, inset 0 1px 0 #fff;
+}
+.self-order-app .customer-home-cash-status.is-delivery .so-takeaway-detail-card > span {
+  border-color: var(--pizzain-line);
+}
+.self-order-app .customer-home-cash-status.is-delivery .so-takeaway-detail-card > span:first-child {
+  background: #fcece9;
+  border-color: var(--pizzain-line);
+}
+.self-order-app .customer-home-cash-status.is-delivery .so-takeaway-detail-card > span > b {
+  color: var(--pizzain-muted);
+}
+.self-order-app .customer-home-cash-status.is-delivery .so-takeaway-detail-card :is(.so-takeaway-number-inline, .so-takeaway-total-row) {
+  background: #fce3dd;
+  border-color: var(--pizzain-line);
+}
+.self-order-app .customer-home-cash-status.is-delivery .so-takeaway-detail-card :is(.so-takeaway-number-inline, .so-takeaway-total-row strong) {
+  color: var(--pizzain-red);
+}
+.self-order-app .customer-home-cash-status.is-delivery .customer-home-current-status:not(.is-cancelled) {
+  border-color: var(--pizzain-line);
+  background: #fcece9;
+  color: var(--pizzain-red);
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > span {
+  color: var(--pizzain-muted);
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > span > i {
+  border-color: var(--pizzain-line);
+  background: #fff7f4;
+  color: var(--pizzain-muted);
+  box-shadow: 0 0 0 4px #fff7f4;
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > span.done > i {
+  background: #fce3dd;
+  color: var(--pizzain-red);
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > span + span::before {
+  background: #efcfcb;
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > :is(span.done, span.active, span.current) {
+  color: var(--pizzain-red);
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > :is(span.done, span.current)::before {
+  background: #d48889;
+}
+.self-order-app :is(.customer-home-cash-status.is-delivery, .customer-home-status) .customer-home-statusbar > span.active > i {
+  border-color: var(--pizzain-red);
+  background: var(--pizzain-action);
+  color: #fff;
 }
