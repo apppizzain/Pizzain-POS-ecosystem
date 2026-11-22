@@ -2231,22 +2231,22 @@
       <div class="customer-home-orders-empty">
         <div class="customer-home-empty-cart-icon" aria-hidden="true">
           <svg viewBox="0 0 144 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="72" cy="58" r="49" fill="#d3e4ff"/>
+            <circle cx="72" cy="58" r="49" fill="#f7cbc6"/>
             <circle cx="110" cy="32" r="18" fill="#fff0d5"/>
-            <ellipse cx="75" cy="107" rx="45" ry="5" fill="#b6cdef" fill-opacity=".55"/>
-            <g stroke="#3c6ca6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="75" cy="107" rx="45" ry="5" fill="#d99490" fill-opacity=".55"/>
+            <g stroke="#96152a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M57 23h29l9 9v43H57z" fill="#fffaf0"/>
-              <path d="M86 23v10h9M66 41h17M66 49h12" stroke="#8aa7cf"/>
-              <path d="M28 51h11l8 38h51l10-29H42" fill="#f6faff"/>
-              <path d="M43 60h65l-8 22H48" fill="#b9d5ff"/>
-              <path d="M59 68v7M73 68v7M87 68v7" stroke="#6a92c4"/>
+              <path d="M86 23v10h9M66 41h17M66 49h12" stroke="#bf6a6b"/>
+              <path d="M28 51h11l8 38h51l10-29H42" fill="#fff7f3"/>
+              <path d="M43 60h65l-8 22H48" fill="#efa8a3"/>
+              <path d="M59 68v7M73 68v7M87 68v7" stroke="#b3555c"/>
               <path d="M47 89h51"/>
               <circle cx="55" cy="99" r="5" fill="#fff"/>
               <circle cx="91" cy="99" r="5" fill="#fff"/>
             </g>
-            <path d="m32 25 2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#6d9bd6"/>
+            <path d="m32 25 2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#bc3243"/>
             <path d="m113 71 2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#d9a050"/>
-            <circle cx="115" cy="49" r="2.5" fill="#8aaedc"/>
+            <circle cx="115" cy="49" r="2.5" fill="#c8797b"/>
             <circle cx="24" cy="80" r="2" fill="#d9b16c"/>
           </svg>
         </div>

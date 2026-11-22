@@ -607,6 +607,29 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   box-shadow: none;
 }
 
+.self-order-app .customer-home-orders-panel.is-empty {
+  background: linear-gradient(155deg, #fff8f5, #fce5e1);
+  border-color: var(--pizzain-line);
+  box-shadow: 0 16px 32px rgb(106 25 46 / .10), inset 0 1px 0 #fff;
+}
+
+.self-order-app .customer-home-orders-panel .customer-home-orders-empty h3 {
+  color: var(--pizzain-red);
+}
+
+.self-order-app .customer-home-orders-panel .customer-home-orders-empty p {
+  color: var(--pizzain-muted);
+}
+
+.self-order-app .customer-home-orders-empty .customer-home-empty-menu.self-order-primary {
+  background: var(--pizzain-action);
+  box-shadow: 0 8px 17px rgb(106 25 46 / .17);
+}
+
+.self-order-app .customer-home-empty-cart-icon svg {
+  filter: drop-shadow(0 6px 7px rgb(106 25 46 / .1));
+}
+
 .self-order-app .customer-home-location-map-heading,
 .self-order-app .customer-home-checkout > .self-order-finish:is(:enabled, [aria-busy="true"]) {
   background: var(--pizzain-action);
