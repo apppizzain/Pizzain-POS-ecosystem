@@ -736,6 +736,18 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   color: var(--pizzain-red);
 }
 
+.self-order-app .fresin-service-strip.is-pickup .fresin-checkout-art {
+  background: linear-gradient(145deg, #fff9f6, #f9d9d2);
+  border-color: var(--pizzain-line);
+}
+
+.self-order-app .fresin-service-strip.is-pickup .fresin-checkout-art > .fresin-service-art {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .fresin-category-chip .self-order-category-label {
   font-family: "Arial Narrow", Arial, sans-serif;
   font-size: 10px;
