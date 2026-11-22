@@ -264,7 +264,7 @@
   }
 
   function soTakeawayShouldRefreshStatus() {
-    if (!soTakeawayIsMode()) return false;
+    if (document.hidden || !soTakeawayIsMode()) return false;
     if (!(IS_SELF_ORDER_APP || view === "selforder")) return false;
     if (sessionStorage.getItem("self_order_step") !== "success") return false;
     const snapshot = soTakeawayLastSnapshot();
@@ -1096,6 +1096,9 @@
     }
 
     if (!window.__soTakeawayStatusRefreshTimer) {
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) soTakeawayRefreshActiveOrderFromSupabase({ force: true });
+      });
       window.__soTakeawayStatusRefreshTimer = window.setInterval(soTakeawayRefreshActiveOrderFromSupabase, TAKEAWAY_STATUS_REFRESH_MS);
       window.setTimeout(() => soTakeawayRefreshActiveOrderFromSupabase({ force: true }), 1200);
     }

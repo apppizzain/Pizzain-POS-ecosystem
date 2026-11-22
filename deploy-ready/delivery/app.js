@@ -21,7 +21,9 @@ const STAFF_SESSION_LOGOUT_KEY = "omnipos_staff_logged_out";
 const POS_CATEGORY_SCROLL_KEY = "pos_category_scroll";
 const SELF_ORDER_MENU_SCROLL_KEY = "self_order_menu_scroll_state";
 const SELF_ORDER_TABLE_CHOICE_KEY = "self_order_open_table_choice";
-const OPERATIONAL_CLEANUP_LAST_RUN_KEY = "kasirin_operational_cleanup_last_run";
+const OPERATIONAL_CLEANUP_LAST_RUN_KEY = IS_SELF_ORDER_APP
+  ? "kasirin_operational_cleanup_last_run_self_order"
+  : "kasirin_operational_cleanup_last_run";
 const OPERATIONAL_CLEANUP_RETENTION_DAYS = 31;
 const OPERATIONAL_CLEANUP_MIN_INTERVAL_HOURS = 20;
 const STALE_REMOTE_ORDER_GRACE_MS = 15 * 60 * 1000;
@@ -329,6 +331,8 @@ let stockOpnameHistoryVisitRequested = false;
 let selfOrderCatalogLoadingGuardTimer = null;
 let nativePushTokenRegisterKey = "";
 let nativePushTokenRegistering = false;
+let nativePushAnonymousSessionRequest = null;
+let nativePushAnonymousRetryAt = 0;
 let nativePushTokenRegisterRetryTimer = null;
 let nativePushTokenLastAttemptAt = 0;
 let nativePushTokenRetryCount = 0;
@@ -2584,18 +2588,31 @@ async function ensureNativePushSupabaseSession() {
   if (supabaseSession?.user) return supabaseSession;
   if (!supabaseClient?.auth?.signInAnonymously) return null;
   if (!window.KasirinAndroid && !window.KasirinNative) return null;
-  try {
-    const { data, error } = await supabaseClient.auth.signInAnonymously();
-    if (error) throw error;
-    supabaseSession = data?.session || null;
-    if (supabaseSession?.user) {
-      supabaseStatus = `Terhubung sebagai perangkat Kasirin`;
-      return supabaseSession;
+  if (nativePushAnonymousSessionRequest) return nativePushAnonymousSessionRequest;
+  if (Date.now() < nativePushAnonymousRetryAt) return null;
+
+  nativePushAnonymousSessionRequest = (async () => {
+    try {
+      const { data, error } = await supabaseClient.auth.signInAnonymously();
+      if (error) throw error;
+      if (!supabaseSession?.user && data?.session?.user) {
+        supabaseSession = data.session;
+        supabaseStatus = `Terhubung sebagai perangkat Kasirin`;
+      }
+    } catch (error) {
+      if (error?.code === "anonymous_provider_disabled") {
+        nativePushAnonymousRetryAt = Date.now() + 30 * 60 * 1000;
+      }
+      console.warn("Native push anonymous session failed", error);
     }
-  } catch (error) {
-    console.warn("Native push anonymous session failed", error);
+    return supabaseSession?.user ? supabaseSession : null;
+  })();
+
+  try {
+    return await nativePushAnonymousSessionRequest;
+  } finally {
+    nativePushAnonymousSessionRequest = null;
   }
-  return null;
 }
 
 async function registerNativePushToken(options = {}) {
@@ -3538,7 +3555,7 @@ async function runAutomaticOperationalCleanup(reason = "auto") {
   if (!automaticOperationalCleanupDue()) return false;
   localStorage.setItem(OPERATIONAL_CLEANUP_LAST_RUN_KEY, new Date().toISOString());
   cleanupLocalOperationalData(OPERATIONAL_CLEANUP_RETENTION_DAYS);
-  if (!canAttemptSupabaseSync()) return false;
+  if (IS_SELF_ORDER_APP || !canAttemptSupabaseSync()) return false;
   try {
     const { error } = await supabaseClient.rpc("cleanup_operational_data", {
       p_retention_days: OPERATIONAL_CLEANUP_RETENTION_DAYS,
