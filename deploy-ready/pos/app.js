@@ -13914,12 +13914,18 @@ async function cancelOrder(id, reason = "") {
   return true;
 }
 
+function orderHasDeliveryDeleteRestriction(order) {
+  return String(order?.type || "").trim().toLowerCase() === "delivery"
+    || String(order?.customerOrderType || order?.orderMode || order?.customer_order_type || "").trim().toUpperCase() === "DELIVERY";
+}
+
 function canDeleteOrderCard(order) {
-  return Boolean(order?.id) && activeRole() === "owner";
+  return Boolean(order?.id) && activeRole() === "owner" && !orderHasDeliveryDeleteRestriction(order);
 }
 
 function openDeleteOrderDialog(id) {
   const order = state.orders.find(item => item.id === id);
+  if (orderHasDeliveryDeleteRestriction(order)) return toast("Hapus permanen pesanan Delivery dinonaktifkan untuk menjaga data Anterin.");
   if (!canDeleteOrderCard(order)) return toast("Hapus pesanan hanya untuk Owner.");
   openConfirmDialog({
     title: "Hapus card pesanan",
@@ -13935,6 +13941,7 @@ function openDeleteOrderDialog(id) {
 
 async function deleteOrderCard(id) {
   const order = state.orders.find(item => item.id === id);
+  if (orderHasDeliveryDeleteRestriction(order)) return toast("Hapus permanen pesanan Delivery dinonaktifkan untuk menjaga data Anterin.");
   if (!canDeleteOrderCard(order)) return toast("Hapus pesanan hanya untuk Owner.");
   if (deleteOrderProcessingIds.has(id)) return;
   if (!canAttemptSupabaseSync()) return toast("Supabase belum tersambung. Hapus permanen belum bisa dilakukan.");
@@ -14009,6 +14016,7 @@ async function restoreOrderStockBeforeDelete(order) {
 
 async function deleteOrderFromSupabase(order) {
   if (!order || !canAttemptSupabaseSync()) return false;
+  if (orderHasDeliveryDeleteRestriction(order)) throw new Error("Hapus permanen pesanan Delivery dinonaktifkan untuk menjaga data Anterin.");
   await ensureSupabaseProfile();
   const orderIds = new Set([order.supabaseId].filter(Boolean));
   if (order.number) {
