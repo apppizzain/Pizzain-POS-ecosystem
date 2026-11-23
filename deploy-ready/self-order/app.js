@@ -6341,6 +6341,7 @@ function orderMissingFromCompleteLiveRefresh(order, serverIds, serverNumbers, op
 }
 
 function mergeSupabaseLiveOrders(serverOrders = [], options = {}) {
+  if (IS_SELF_ORDER_APP) window.FresinGateway?.updateOrderStatuses?.(serverOrders);
   if (!serverOrders.length && !options.pruneMissingSynced) return;
   const serverIds = new Set(serverOrders.map(order => order.supabaseId).filter(Boolean));
   const serverNumbers = new Set(serverOrders.map(order => order.number).filter(Boolean));
@@ -10942,6 +10943,7 @@ async function selfOrderCreateOrder() {
     selfOrderSubmitError = "Gagal mengirim pesanan, cek koneksi anda lalu coba lagi";
     return;
   }
+  window.FresinGateway?.rememberOrder?.(order, "dinein", orderGrandTotalForSync(order));
   audit("Self order dibuat", `${order.number} ${order.serviceInfo} ${money(orderTotal(order))}`);
   selfOrderCart = [];
   saveSelfOrderCart();

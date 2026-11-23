@@ -885,3 +885,144 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   background: var(--pizzain-action);
   color: #fff;
 }
+
+.fresin-so-success .fresin-so-table-notice {
+  border-color: #efcbd0;
+  border-left-color: #b7233d;
+  background: linear-gradient(120deg, #fbe9e9, #fff7f4);
+  box-shadow: 0 7px 16px #86152b0d;
+}
+.fresin-so-success .fresin-so-table-notice .self-order-success-warning { color: #8c1530; }
+.fresin-so-success .fresin-so-table-notice .self-order-success-warning-hint { color: #765159; }
+.fresin-so-success .fresin-so-order-hint { color: #765159; text-align: center; }
+.fresin-so-success .so-takeaway-detail-card { border-color: #efcbd0; background: #fff5f2; }
+.fresin-so-success .so-takeaway-detail-card > span { border-color: #efd5d5; }
+.fresin-so-success .so-takeaway-detail-card > span:first-child { border-color: #efcbd0; background: #f9e4e5; }
+.fresin-so-success .so-takeaway-detail-card > span > b { color: #765159; }
+.fresin-so-success .so-takeaway-detail-card > span > strong { color: #55222b; }
+.fresin-so-success .so-takeaway-detail-card .so-takeaway-number-inline { color: #9d142e; border-color: #efc9cc; background: #fff5ef; }
+.fresin-so-success .so-takeaway-detail-card .so-takeaway-total-row { background: #f7dfe2; }
+.fresin-so-success .so-takeaway-detail-card .so-takeaway-total-row strong { color: #9d142e; }
+.fresin-so-success .self-order-success-actions .self-order-primary {
+  background: linear-gradient(135deg, #a10b28, #c0273e);
+  color: #fff;
+  box-shadow: 0 7px 15px #9d142e25;
+}
+.fresin-so-success .self-order-success-actions .self-order-primary:hover { background: #8c1028; color: #fff; }
+
+.fresin-my-orders {
+  box-sizing: border-box;
+  width: min(100%, 560px);
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: 14px 16px 40px;
+  background: #fff6f5;
+  color: #35151a;
+}
+
+.fresin-my-orders header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 0 0 7px;
+  border-bottom: 1px solid #f0d6d7;
+}
+
+.fresin-my-orders header button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #f2d9dc;
+  border-radius: 11px;
+  background: #fff;
+  color: #8a1630;
+  cursor: pointer;
+}
+
+.fresin-my-orders header button svg { width: 18px; height: 18px; }
+.fresin-my-orders h1 { margin: 0; color: #591b28; font-family: "Fresin Nunito", system-ui, sans-serif; font-size: 15px; font-weight: 900; }
+.fresin-my-orders h2 { margin: 0 0 9px; color: #651f2c; font-size: 13px; }
+.fresin-my-orders section + section { margin-top: 24px; }
+
+.fresin-my-order {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 10px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px 10px;
+  border: 1px solid #f2d9dc;
+  border-radius: 16px;
+  background: linear-gradient(115deg, #fffaf9, #fff 65%);
+  box-shadow: 0 3px 10px #86152b0b;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fresin-my-orders-active .fresin-my-order {
+  grid-template-columns: 42px minmax(0, 1fr) auto 10px;
+  margin-bottom: 0;
+  padding: 14px 11px 12px;
+  background: #fce9eb;
+  border-color: #f2cdd2;
+}
+.fresin-my-orders-active .fresin-my-order-icon { width: 42px; height: 42px; }
+.fresin-my-order-details {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 8px;
+  padding-top: 9px;
+  border-top: 1px solid #efd0d5;
+  color: #71555c;
+  font-size: 11px;
+}
+.fresin-my-order-details:empty { display: none; }
+.fresin-my-order-status {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #8a1630;
+  font-weight: 700;
+}
+.fresin-my-orders-active,
+.fresin-my-orders-history {
+  padding: 12px;
+  border: 1px solid #efd9d6;
+  border-radius: 20px;
+  background: #fffdfb;
+  box-shadow: 0 6px 18px #86152b0a;
+}
+.fresin-my-orders-active h2,
+.fresin-my-orders-history h2 { margin-bottom: 10px; padding-inline: 2px; }
+.fresin-my-orders-history .fresin-my-order { margin-bottom: 0; background: #fff3dc; border-color: #eedbb7; }
+.fresin-my-orders-active .fresin-my-order + .fresin-my-order,
+.fresin-my-orders-history .fresin-my-order + .fresin-my-order { margin-top: 8px; }
+.fresin-my-orders-active .fresin-my-order-icon,
+.fresin-my-orders-history .fresin-my-order-icon { background: linear-gradient(135deg, #a10b28, #c0273e); color: #fff; }
+.fresin-my-orders .fresin-my-order:hover { border-color: #d8a2ac; }
+.fresin-my-order:focus-visible,
+.fresin-my-orders header button:focus-visible { outline: 2px solid #8a1630; outline-offset: 2px; }
+.fresin-my-order-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  background: #fbe8eb;
+  color: #8a1630;
+}
+.fresin-my-order-icon svg { width: 20px; height: 20px; }
+.fresin-my-order-meta { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.fresin-my-order-meta strong { font-size: 14px; }
+.fresin-my-order-meta small { color: #71555c; font-size: 11px; }
+.fresin-my-order-total { color: #8a1630; font-size: 13px; white-space: nowrap; }
+.fresin-my-order-arrow { color: #8a1630; font-size: 20px; }
