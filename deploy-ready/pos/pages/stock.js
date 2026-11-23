@@ -118,7 +118,7 @@ function stockProductCardHtml(product) {
   if (product.type === "addon") return stockAddonCardHtml(product);
   const displayStatus = stockProductStatusLabel(product);
   const displayClass = displayStatus === "Habis" ? "cancel" : displayStatus === "Menipis" ? "process" : "ready";
-  const photo = mediaImageTag(product.imageName, `Foto ${product.name}`, "stock-product-photo", 120);
+  const photo = mediaImageTag(productPhotoSource(product.imageName), `Foto ${product.name}`, "stock-product-photo", 120);
   const variantGroups = productAvailabilityVariantGroups(product);
   const variants = variantGroups.flatMap(group => group.variants);
 
