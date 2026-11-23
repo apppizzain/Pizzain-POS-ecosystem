@@ -107,7 +107,7 @@
     if (soTakeawayIsExpired(order)) return "Kedaluwarsa";
     if (order?.status === "Dibatalkan") return "Dibatalkan";
     if (soTakeawayIsCompleted(order)) return "Selesai";
-    return soTakeawayIsReleasedToKitchen(order) ? "Diproses" : "Menunggu kasir";
+    return soTakeawayIsReleasedToKitchen(order) ? "Diproses" : "Baru";
   }
 
   function soTakeawayIsReleasedToKitchen(order) {
@@ -818,9 +818,7 @@
     if (status === "PICKED_UP") return "Diambil kurir";
     if (status === "READY_FOR_PICKUP" || ["Siap Diambil", "Selesai"].includes(order.status)) return "Siap diambil kurir";
     if (status === "PREPARING" || order.status === "Sedang Disiapkan") return "Diproses dapur";
-    if (order.confirmedAt) return "Menunggu dapur";
-    if (status === "DRIVER_ASSIGNED" || order.driverId || order.driver_id) return "Kurir ditugaskan";
-    return status === "NO_DRIVER_AVAILABLE" ? "Driver belum tersedia" : "Mencari kurir";
+    return "Baru";
   }
 
   function soTakeawayPosDeliveryNote(note) {
@@ -963,7 +961,7 @@
           <div class="so-takeaway-card-identity">
             <div class="order-title-row so-takeaway-order-heading">${orderSequenceBadge(options.sequenceNumber)}${header}</div>
           </div>
-          <span class="orders-status-pill ready ${statusLabel === "Menunggu kasir" ? "is-waiting" : ""}">${soTakeawayEscape(statusLabel)}</span>
+          <span class="orders-status-pill ready">${soTakeawayEscape(statusLabel)}</span>
         </div>
         <div class="so-takeaway-order-meta-line">
           <span class="so-takeaway-order-time">${soTakeawayDateTime(order.createdAt)}</span>
