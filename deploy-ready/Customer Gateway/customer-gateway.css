@@ -886,6 +886,35 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
   color: #fff;
 }
 
+.customer-home-cash-status:not(.is-delivery) :is(.so-takeaway-detail-card, .customer-home-progress-card) {
+  border-color: #efcbd0;
+  background: #fff5f2;
+  box-shadow: 0 7px 16px #86152b0d;
+}
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-detail-card > span { border-color: #efd5d5; }
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-detail-card > span:first-child { background: #f9e4e5; }
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-detail-card > span > b { color: #765159; }
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-detail-card > span > strong { color: #55222b; }
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-detail-card :is(.so-takeaway-number-inline, .so-takeaway-total-row strong) { color: #9d142e; }
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-statusbar { border-color: #efcbd0; background: #fffaf8; }
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-statusbar > span:not(:first-child) {
+  background: #f7e7e8;
+  color: #765159;
+}
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-statusbar > span.active:not(:first-child) {
+  background: #f5dce0;
+  color: #8c1530;
+}
+.customer-home-cash-status:not(.is-delivery) .so-takeaway-statusbar > span:not(.active):not(:first-child) > i {
+  background: #edd5d8;
+  color: #765159;
+}
+.customer-home-cash-status:not(.is-delivery) .customer-home-current-status:not(.is-cancelled) {
+  border-color: #efcbd0;
+  background: #f9e4e5;
+  color: #8c1530;
+}
+
 .fresin-so-success .fresin-so-table-notice {
   border-color: #efcbd0;
   border-left-color: #b7233d;
