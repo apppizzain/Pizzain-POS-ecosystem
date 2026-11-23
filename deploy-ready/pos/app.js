@@ -2706,6 +2706,29 @@ function handleNotificationSettingsDraftChange(form) {
   updateNativePushTokenButtonState(form);
 }
 
+function registerPosPushTokenThroughAndroid(preferences) {
+  const callbackId = `pos_push_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const callbacks = window.__kasirinFcmTokenCallbacks ||= {};
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      delete callbacks[callbackId];
+      reject(new Error("Waktu tunggu registrasi habis. Coba lagi."));
+    }, 40000);
+    callbacks[callbackId] = result => {
+      clearTimeout(timeout);
+      if (result?.ok) resolve();
+      else reject(new Error(result?.error || "Registrasi perangkat gagal."));
+    };
+    try {
+      window.KasirinAndroid.registerPosPushToken(callbackId, preferences);
+    } catch (error) {
+      clearTimeout(timeout);
+      delete callbacks[callbackId];
+      reject(error);
+    }
+  });
+}
+
 async function registerDevicePushTokenFromSettings(button) {
   applyNotificationSettings(readNotificationSettingsFromForm(button));
   const stopLoading = beginButtonLoading(button, "Mendaftarkan...");
@@ -2719,6 +2742,16 @@ async function registerDevicePushTokenFromSettings(button) {
     const token = await getNativeFcmToken();
     if (!token) {
       toast("Token notifikasi belum tersedia. Buka ulang aplikasi lalu coba lagi.");
+      return;
+    }
+    if (typeof window.KasirinAndroid?.registerPosPushToken === "function") {
+      const preferences = nativePushRegistrationSignature();
+      await registerPosPushTokenThroughAndroid(preferences);
+      confirmed = preferences === nativePushRegistrationSignature();
+      if (confirmed) {
+        markNativePushTokenRegistered();
+        toast("Token perangkat terdaftar.");
+      }
       return;
     }
     let unauthorized = false;
