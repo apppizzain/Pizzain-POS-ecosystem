@@ -8545,18 +8545,20 @@ function renderReceiptPrintModel(model, headerNote = "") {
     ? `<em class="receipt-logo-image" style="--receipt-logo-chars:${logoChars}">${mediaImageTag(model.logo.dataUrl, "Logo usaha", "", 320)}</em>`
     : `<em style="--receipt-logo-chars:${logoChars}">${escapeHtml(model.logo.text)}</em>`;
   return `
-    <div class="receipt-paper ${model.logo.show ? "" : "receipt-no-logo"} ${model.logo.mode === "B" ? "receipt-image-b" : ""} ${model.width === "80mm" ? "receipt-80" : ""}">
+    <div class="receipt-paper ${model.logo.show ? "" : "receipt-no-logo"} ${model.logo.mode === "B" ? "receipt-image-b" : ""} ${model.width === "80mm" ? "receipt-80" : ""}"${model.topFeedLines ? ' style="padding-top:2em"' : ""}>
       ${model.logo.show ? logoMarkup : ""}
       ${model.headerLines[0] ? `<strong class="receipt-store-name">${escapeHtml(model.headerLines[0])}</strong>` : ""}
       ${model.headerLines.slice(1).map(line => `<small class="${line === lastHeaderLine && line === headerNote ? "receipt-note" : "receipt-address"}">${escapeHtml(line)}</small>`).join("")}
-      <i></i>
+      ${!model.topFeedLines || model.logo.show || model.headerLines.length ? "<i></i>" : ""}
       ${model.metaLines.map(row => {
         if (row.type === "center") return `<span class="${row.role === "identity" ? "receipt-identity-row" : "receipt-date-row"}"><b>${escapeHtml(row.text)}</b></span>`;
-        if (row.type === "note") return `<span class="receipt-transaction-note"><b>Catatan:</b> ${escapeHtml(row.text)}</span>`;
+        if (row.type === "note") return `<span class="receipt-transaction-note"><b>${escapeHtml(row.caption || "Catatan:")}</b> ${escapeHtml(row.text)}</span>`;
         return `<span${row.type === "pair" ? ' class="receipt-meta-pair"' : ""}><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>`;
       }).join("")}
       <i></i>
-      ${model.items.map(item => `<span class="${item.detail ? "receipt-item-detail" : ""}"><b>${escapeHtml(item.label)}</b>${item.amount ? `<b>${escapeHtml(item.amount)}</b>` : ""}</span>`).join("")}
+      ${model.items.map(item => item.printLines
+        ? `<span style="display:grid;grid-template-columns:${model.itemQtyColumns - 1}ch minmax(0,1fr);gap:1ch;overflow-wrap:anywhere"><b>${escapeHtml(item.quantity)}</b><b>${escapeHtml(item.description)}</b></span>`
+        : `<span class="${item.detail ? "receipt-item-detail" : ""}"><b>${escapeHtml(item.label)}</b>${item.amount ? `<b>${escapeHtml(item.amount)}</b>` : ""}</span>`).join("")}
       ${model.totalLines.filter(row => !row.strong).map(row => row.label === "Total qty" ? `<span><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>` : "").join("")}
       <i></i>
       ${model.totalLines.map(row => row.strong ? `<strong class="receipt-total"><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></strong>` : row.label !== "Total qty" ? `<span><b>${escapeHtml(row.label)}</b><b>${escapeHtml(row.value)}</b></span>` : "").join("")}
@@ -8688,7 +8690,7 @@ function receiptPrintModelText(model) {
   model.headerLines.forEach(line => {
     receiptWrapText(line, width).forEach(part => lines.push(receiptCenterLine(part, width)));
   });
-  lines.push(receiptSeparator(width));
+  if (!model.topFeedLines || model.logo.show || model.headerLines.length) lines.push(receiptSeparator(width));
   model.metaLines.forEach(line => {
     if (line.type === "center") {
       lines.push(receiptCenterLine(line.text, width));
@@ -8698,7 +8700,8 @@ function receiptPrintModelText(model) {
   });
   lines.push(receiptSeparator(width));
   model.items.forEach(item => {
-    if (!item.amount) lines.push(...receiptWrapText(item.label, width));
+    if (item.printLines) lines.push(...item.printLines);
+    else if (!item.amount) lines.push(...receiptWrapText(item.label, width));
     else lines.push(...receiptPairText(item.label, item.amount, width));
   });
   model.totalLines.filter(line => line.label === "Total qty").forEach(line => lines.push(...receiptPairText(line.label, line.value, width)));
@@ -8709,7 +8712,7 @@ function receiptPrintModelText(model) {
   }
   if (model.qrText) lines.push(receiptCenterLine(model.qrText, width));
   if (model.footer) receiptWrapText(model.footer, width).forEach(line => lines.push(receiptCenterLine(line, width)));
-  return lines.filter((line, index, list) => line || list[index - 1]).join("\n");
+  return "\n".repeat(model.topFeedLines || 0) + lines.filter((line, index, list) => line || list[index - 1]).join("\n");
 }
 
 function printerSlotLabel(slot) {
@@ -8719,6 +8722,7 @@ function printerSlotLabel(slot) {
 function receiptPrintProfile(kind) {
   const saved = state.settings.receiptPrintProfiles?.[kind] || {};
   return {
+    name: String(saved.name || "").trim(),
     printerSlot: ["A", "B"].includes(saved.printerSlot) ? saved.printerSlot : (kind === "kitchen2" ? "B" : "A"),
     printMode: saved.printMode || (state.settings.printerPrintMode === "text" ? "text" : "formatted"),
     width: saved.width === "58mm" || saved.width === "80mm" ? saved.width : "",
@@ -8801,17 +8805,31 @@ function kitchenReceiptModel(order, kind, profile = receiptPrintProfile(kind)) {
   const widthChars = receiptPrintWidth({ receiptWidth: width });
   const items = order.items || order.cart || [];
   const orderNumber = displayOrderNumber(order.number);
-  const service = String(order.type || "").trim();
+  const rawService = receiptNormalizePrintText(order.type).replace(/[\r\n]+/g, " ");
+  const serviceKey = rawService.toLowerCase().replace(/[\s_-]/g, "");
+  const service = ({ delivery: "Delivery", takeaway: "Takeaway", dinein: "Dine in" })[serviceKey] || rawService || "Pesanan";
   const tableValue = String(order.serviceInfo ?? order.service_info ?? "").trim();
-  const table = profile.showTable && /^dine[\s_-]*in$/i.test(service) && !/^(?:-*|dine[\s_-]*in)$/i.test(tableValue)
+  const table = profile.showTable && serviceKey === "dinein" && !/^(?:-*|dine[\s_-]*in)$/i.test(tableValue)
     ? tableValue
     : "";
-  const customerValue = String(order.customer || "").trim();
-  const customer = profile.showCustomer && customerValue !== "-" ? customerValue : "";
-  const identity = [table || orderNumber, customer].filter(Boolean).join(" - ");
+  const firstName = receiptNormalizePrintText(order.customer).split(/\s+/)[0];
+  const customer = profile.showCustomer && firstName !== "-" ? firstName : "";
+  const heading = [service, customer].filter(Boolean).join(" - ");
+  const headingLines = heading.length <= widthChars ? [heading] : [
+    ...receiptWrapText(service, widthChars),
+    ...(customer ? [customer.length <= widthChars ? customer : customer.slice(0, widthChars - 3) + "..."] : [])
+  ];
   const orderNote = profile.showNotes ? orderCustomerNoteDisplay(order.note) : "";
+  const quantities = items.map(item => `${Number(item.qty || 0)}x`);
+  const itemQtyColumns = Math.max(4, ...quantities.map(quantity => quantity.length + 1));
+  const itemRow = (description, quantity = "") => ({
+    label: [quantity, description].filter(Boolean).join(" "),
+    amount: "", quantity, description,
+    printLines: receiptWrapText(description.replace(/[\r\n]+/g, " "), widthChars - itemQtyColumns)
+      .map((line, index) => (index ? "" : quantity).padEnd(itemQtyColumns) + line)
+  });
   return {
-    width, widthChars,
+    width, widthChars, itemQtyColumns, topFeedLines: 2,
     logo: {
       show: profile.showLogo, dataUrl: settings.receiptLogoDataUrl || "",
       text: settings.receiptLogoText || settings.receiptStoreName || "Pizzain",
@@ -8822,20 +8840,24 @@ function kitchenReceiptModel(order, kind, profile = receiptPrintProfile(kind)) {
     ].filter(Boolean),
     headerNote: profile.headerNote,
     metaLines: [
-      ...receiptWrapText(identity, Math.floor(widthChars / 1.5)).map(text => ({ type: "center", role: "identity", text })),
+      ...headingLines.map(text => ({ type: "center", role: "kitchen-title", text })),
       { type: "pair", label: "Tanggal", value: receiptDateText(order.createdAt) },
-      ...(service ? [{ type: "pair", label: "Layanan", value: service }] : []),
-      ...(table && orderNumber !== "-" ? [{ type: "pair", label: "No. order", value: orderNumber }] : []),
-      ...(orderNote ? [{ type: "note", text: orderNote, label: "Catatan: " + orderNote, value: "" }] : [])
+      { type: "pair", label: "No. struk", value: orderNumber },
+      ...(table ? [{ type: "pair", label: "Meja", value: table }] : []),
+      ...(orderNote ? [{ type: "note", caption: "Note :", text: orderNote, label: "Note : " + orderNote, value: "" }] : [])
     ],
-    items: items.flatMap(item => {
+    items: items.flatMap((item, index) => {
+      const name = String(item.name || "Item").trim() || "Item";
+      const variant = String(item.variantLabel || item.variant || "").trim();
+      const hasVariantSuffix = variant && name.toLowerCase().endsWith(" " + variant.toLowerCase());
       const details = [
+        variant,
         ...(item.addons || []).map(addon => `+ ${Number(addon.qty || 1)}x ${addon.name || "Tambahan"}`),
-        profile.showNotes && item.note ? `Catatan: ${item.note}` : ""
+        profile.showNotes && item.note ? `Note : ${item.note}` : ""
       ].filter(Boolean);
       return [
-        { label: `${Number(item.qty || 0)}x ${item.name || "Item"}`, amount: "" },
-        ...details.map(label => ({ label, amount: "", detail: true }))
+        itemRow(hasVariantSuffix ? name.slice(0, -variant.length).trim() : name, quantities[index]),
+        ...details.map(detail => itemRow(detail))
       ];
     }),
     totalLines: profile.showQuantity ? [{ label: "Total qty", value: String(items.reduce((qty, item) => qty + Number(item.qty || 0), 0)) }] : [],
@@ -12978,7 +13000,7 @@ function printOrderCardReceipt(id) {
 function kitchenPrintButtons(orderId, className) {
   return [["kitchen1", "A"], ["kitchen2", "B"]].map(([kind, label]) => `
     <button class="btn ${className}" type="button" title="Tanpa harga"
-      onclick="event.preventDefault(); event.stopPropagation(); printKitchenOrder(${escapeHtml(JSON.stringify(orderId))}, '${kind}')">Struk Dapur ${label}</button>
+      onclick="event.preventDefault(); event.stopPropagation(); this.closest('.orders-print-dropdown')?.removeAttribute('open'); printKitchenOrder(${escapeHtml(JSON.stringify(orderId))}, '${kind}')">${escapeHtml(receiptPrintProfile(kind).name || `Struk Dapur ${label}`)}</button>
   `).join("");
 }
 
@@ -12989,7 +13011,7 @@ function printKitchenOrder(id, kind) {
     return toast("Rincian pesanan belum tersedia untuk cetak dapur.");
   }
   const profile = receiptPrintProfile(kind);
-  const title = `Struk Dapur ${kind === "kitchen2" ? 2 : 1} ${displayOrderNumber(order.number)}`;
+  const title = `${profile.name || (kind === "kitchen2" ? "Struk Dapur 2" : "Struk Dapur 1")} ${displayOrderNumber(order.number)}`;
   const model = kitchenReceiptModel(order, kind, profile);
   dispatchKitchenPrint(receiptPrintModelText(model), title, profile.printerSlot, model);
 }
@@ -14475,8 +14497,14 @@ function orderCenterCard(order, options = {}) {
   const actions = [
     options.contact?.actions,
     order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan" ? `<button class="btn green" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>` : "",
-    order.paymentStatus === "Lunas" ? `<button class="btn green orders-print-receipt-btn" type="button" title="Struk pelanggan" onclick="event.preventDefault(); event.stopPropagation(); printOrderCardReceipt('${order.id}')">Struk Pembayaran</button>` : "",
-    order.status !== "Dibatalkan" && (order.items || order.cart || []).length ? kitchenPrintButtons(order.id, "orders-kitchen-print-btn") : "",
+    order.paymentStatus === "Lunas" || (order.status !== "Dibatalkan" && (order.items || order.cart || []).length) ? `
+      <details class="orders-print-dropdown" onclick="event.stopPropagation()">
+        <summary class="btn green orders-print-receipt-btn">Print Struk</summary>
+        <div class="orders-print-options">
+          ${order.paymentStatus === "Lunas" ? `<button class="btn" type="button" onclick="this.closest('details').open = false; printOrderCardReceipt(${escapeHtml(JSON.stringify(order.id))})">${escapeHtml(receiptPrintProfile("customer").name || "Struk Pembayaran")}</button>` : ""}
+          ${order.status !== "Dibatalkan" && (order.items || order.cart || []).length ? kitchenPrintButtons(order.id, "orders-kitchen-print-btn") : ""}
+        </div>
+      </details>` : "",
     canCorrectOrder(order) ? `<button class="btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); openOrderCorrection('${order.id}')">Koreksi Pesanan</button>` : "",
     canMoveOrderTable(order) ? `<button class="btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); openMoveOrderTableDialog('${order.id}', ${options.returnToUnpaid ? "'unpaid'" : "'orders'"})">Pindahkan Meja</button>` : "",
     canCancelOrder(order) ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openCancelOrderDialog('${order.id}', ${options.returnToUnpaid ? "true" : "false"})">Batalkan</button>` : "",
@@ -16633,12 +16661,14 @@ function receiptPrintProfileFromForm(target, kind) {
   const profile = receiptPrintProfile(kind);
   const slot = form.get("receiptPrinterSlot");
   if (slot === "A" || slot === "B") profile.printerSlot = slot;
+  const name = String(form.get("receiptProfileName") || "").trim();
   if (kind === "customer") {
-    return { printerSlot: profile.printerSlot, printMode: profile.printMode };
+    return { name, printerSlot: profile.printerSlot, printMode: profile.printMode };
   }
   const width = form.get("kitchenReceiptWidth");
   const text = name => String(form.get(name) || "").trim();
   return {
+    name,
     printerSlot: profile.printerSlot,
     width: width === "58mm" || width === "80mm" ? width : "",
     storeName: text("kitchenStoreName"),

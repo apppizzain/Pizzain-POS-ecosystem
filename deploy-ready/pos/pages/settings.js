@@ -518,8 +518,8 @@ function renderReceiptSettingsTab() {
     ["kitchen2", "Struk Dapur 2"]
   ];
   const activeKind = receiptSettingsProfile;
-  const activeTitle = kinds.find(([kind]) => kind === activeKind)?.[1] || "";
   const profile = activeKind ? receiptPrintProfile(activeKind) : null;
+  const activeTitle = escapeHtml(profile?.name || kinds.find(([kind]) => kind === activeKind)?.[1] || "");
   return `
     <section class="settings-panel receipt-settings-panel settings-single-panel receipt-modern-panel settings-receipt-compact">
       <div class="section-title compact-settings-title">
@@ -531,15 +531,16 @@ function renderReceiptSettingsTab() {
             data-receipt-profile="${kind}" aria-expanded="${activeKind === kind}" aria-controls="receipt-profile-panel"
             onclick="setReceiptSettingsProfile('${kind}')">
               <span class="receipt-profile-icon" aria-hidden="true">${navIcon(kind === "customer" ? "orders" : "kitchen")}</span>
-              <span>${label}</span>
+              <span>${escapeHtml(String(settings.receiptPrintProfiles?.[kind]?.name || "").trim() || label)}</span>
           </button>`).join("")}
       </div>
       <div id="receipt-profile-panel" ${!activeKind ? "hidden" : ""}>
       ${activeKind === "customer" ? `
-      <form class="receipt-settings-modern" aria-label="Struk Pelanggan" onchange="previewReceiptSettings(this)" onsubmit="saveReceiptSettings(event)">
+      <form class="receipt-settings-modern" aria-label="${activeTitle}" onchange="previewReceiptSettings(this)" onsubmit="saveReceiptSettings(event)">
         ${renderReceiptSettingsPreview(renderReceiptPaper(), settings.receiptWidth, receiptLogoUploading)}
         <div class="receipt-settings-list">
-          <h4 class="receipt-editor-heading">Struk Pelanggan</h4>
+          <h4 class="receipt-editor-heading">${activeTitle}</h4>
+          <label class="field"><span>Nama struk</span><input class="input" name="receiptProfileName" maxlength="40" placeholder="Struk Pelanggan" value="${escapeHtml(profile.name || "")}" /></label>
           ${renderReceiptPrinterField(profile.printerSlot)}
           <div class="receipt-mini-grid">
             <div class="field"><label>Nama toko</label><input class="input" name="receiptStoreName" required value="${escapeHtml(settings.receiptStoreName)}" /></div>
@@ -612,6 +613,7 @@ function renderKitchenReceiptSettings(kind, title, profile) {
           <p class="receipt-kitchen-note">Item dan catatan, tanpa harga.</p>
         </div>
         <div class="receipt-mini-grid">
+          <label class="field"><span>Nama struk</span><input class="input" name="receiptProfileName" maxlength="40" placeholder="${kind === "kitchen2" ? "Struk Dapur 2" : "Struk Dapur 1"}" value="${escapeHtml(profile.name || "")}" /></label>
           ${renderReceiptPrinterField(profile.printerSlot)}
           <label class="field"><span>Lebar kertas</span><select name="kitchenReceiptWidth">
             <option value="">Ikuti pelanggan</option>
