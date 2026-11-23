@@ -2633,19 +2633,29 @@ async function registerNativePushToken(options = {}) {
   }
   nativePushTokenRegistering = true;
   try {
-    const { error } = await supabaseClient.functions.invoke("register-device-token", {
-      body: {
-        token,
-        platform: "android",
-        scopeKey,
-        target,
-        enabled,
-        kitchenCategories,
-        deviceName: `${state.outlet || "Kasirin"} - ${roleLabel(activeStaffRole() || "kasir")}`,
-        appVersion: "webview"
+    const body = {
+      token,
+      platform: "android",
+      scopeKey,
+      target,
+      enabled,
+      kitchenCategories,
+      deviceName: `${state.outlet || "Kasirin"} - ${roleLabel(activeStaffRole() || "kasir")}`,
+      appVersion: "webview"
+    };
+    let { error } = await supabaseClient.functions.invoke("register-device-token", { body });
+    if (error?.context?.status === 401 && options.reason === "manual-token") {
+      const refreshed = session?.user && await supabaseClient.auth.refreshSession();
+      const refreshedSession = refreshed?.data?.session;
+      if (!refreshed?.error && refreshedSession?.user?.id === session?.user?.id && refreshedSession?.access_token) {
+        supabaseSession = refreshedSession;
+        ({ error } = await supabaseClient.functions.invoke("register-device-token", { body }));
       }
-    });
-    if (error) throw error;
+    }
+    if (error) {
+      if (error.context?.status === 401) options.onUnauthorized?.();
+      throw error;
+    }
     nativePushTokenRegisterKey = registerKey;
     markNativePushTokenRegistered();
     return true;
@@ -2711,9 +2721,16 @@ async function registerDevicePushTokenFromSettings(button) {
       toast("Token notifikasi belum tersedia. Buka ulang aplikasi lalu coba lagi.");
       return;
     }
-    const registered = await registerNativePushToken({ reason: "manual-token", force: true });
+    let unauthorized = false;
+    const registered = await registerNativePushToken({
+      reason: "manual-token",
+      force: true,
+      onUnauthorized: () => { unauthorized = true; }
+    });
     if (!registered) {
-      toast("Token belum berhasil didaftarkan. Periksa koneksi lalu coba lagi.");
+      toast(unauthorized
+        ? "Sesi Supabase ditolak. Masuk ulang dengan akun POS Pizzain, lalu coba lagi."
+        : "Token belum berhasil didaftarkan. Periksa koneksi lalu coba lagi.");
       return;
     }
     if (!(await nativePushTokenIsRegistered(token))) {
