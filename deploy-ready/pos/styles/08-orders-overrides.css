@@ -6330,6 +6330,10 @@
   gap: 5px;
 }
 
+.orders-print-dropdown {
+  position: relative;
+}
+
 .orders-print-dropdown summary {
   display: flex;
   align-items: center;
@@ -6352,14 +6356,23 @@
   transform: rotate(45deg);
 }
 
-.orders-print-dropdown[open] {
-  grid-column: 1 / -1;
-}
-
 .orders-print-options {
+  position: absolute;
+  z-index: 5;
+  inset: calc(100% + 4px) 0 auto;
   display: grid;
   gap: 5px;
-  margin-top: 5px;
+  padding: 5px;
+  background: white;
+  border: 1px solid var(--pos-card-border-strong, #b8dfcf);
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgb(0 0 0 / .14);
+}
+
+.orders-print-options .btn {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .view-orders .orders-card-actions .btn {
