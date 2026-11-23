@@ -234,10 +234,14 @@
   z-index: 2;
   display: flex;
   gap: 5px;
+  max-width: calc(100% - 32px);
+  overflow-x: auto;
+  scrollbar-width: none;
   transform: translateX(-50%);
 }
 
 .self-order-promo-dots button {
+  flex: 0 0 auto;
   width: 7px;
   height: 7px;
   min-height: 0;

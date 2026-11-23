@@ -354,7 +354,7 @@ function renderSelfOrderSettingsTab() {
         <div class="settings-form-stack self-order-slide-list">
           <div class="self-order-slide-toolbar">
             <strong>Badge promosi</strong>
-            <button class="btn" type="button" onclick="addSelfOrderPromoSlide()" ${slides.length >= 4 ? "disabled" : ""}>Tambah badge</button>
+            <button class="btn" type="button" onclick="addSelfOrderPromoSlide()">Tambah badge</button>
           </div>
           ${slides.map((slide, index) => `
             <article class="self-order-slide-row" data-self-order-slide-row>
@@ -386,7 +386,6 @@ function renderSelfOrderSettingsTab() {
               <button class="btn" type="button" onclick="clearSelfOrderPromoImage(${index})">Kosongkan</button>
             </article>
           `).join("") || `<p class="self-order-slide-empty">Belum ada badge promosi. Klik Tambah badge untuk mulai upload.</p>`}
-          <input type="hidden" name="selfOrderPromoSlideCount" value="${slides.length}" />
           ${renderSelfOrderUpsellSettings(activeProducts)}
           <div class="receipt-action-row">
             <button class="btn accent self-order-save-btn settings-save-btn ${selfOrderSettingsSaving ? "is-loading" : ""}" type="submit" ${selfOrderSettingsSaving ? "disabled" : ""}>

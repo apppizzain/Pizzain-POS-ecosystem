@@ -1601,7 +1601,7 @@ function normalizeSelfOrderPromoSlide(slide = null, options = null) {
 function normalizeSelfOrderPromoSlides(slides = null, options = null) {
   const config = options || {};
   if (!Array.isArray(slides)) return [];
-  return slides.slice(0, 4)
+  return slides
     .map(slide => normalizeSelfOrderPromoSlide(slide, config))
     .filter(slide => (config.includeDraft && slide.draft) || slide.image || slide.productId || slide.label !== "Order Now");
 }
@@ -16858,7 +16858,6 @@ function readSelfOrderPromoSlidesFromSettings(options = null) {
 
 function addSelfOrderPromoSlide() {
   const slides = readSelfOrderPromoSlidesFromSettings({ allowTemporary: true });
-  if (slides.length >= 4) return toast("Maksimal 4 badge promosi.");
   state.settings.selfOrderPromoSlides = [...slides, { image: "", productId: "", label: "Order Now", draft: true }];
   render();
 }
@@ -16879,7 +16878,7 @@ async function uploadSelfOrderPromoImage(input, index = 0) {
   const statusKey = `promo-${Number(index)}`;
   try {
     const previewSlides = previousSlides.map(slide => ({ ...slide }));
-    while (previewSlides.length <= index && previewSlides.length < 4) {
+    while (previewSlides.length <= index) {
       previewSlides.push({ image: "", productId: "", label: "Order Now", draft: true });
     }
     previewSlides[index] = { ...previewSlides[index], image: localPreview };
@@ -16892,7 +16891,7 @@ async function uploadSelfOrderPromoImage(input, index = 0) {
       ownerId: `self-order-promo-${Number(index) + 1}`
     });
     const slides = readSelfOrderPromoSlidesFromSettings({ allowTemporary: true });
-    while (slides.length <= index && slides.length < 4) {
+    while (slides.length <= index) {
       slides.push({ image: "", productId: "", label: "Order Now", draft: true });
     }
     slides[index] = { ...slides[index], image: uploaded.url };
@@ -16983,8 +16982,8 @@ function saveSelfOrderSettings(event) {
   try { operatingHours = window.FresinOnlineHours.readForm(form); }
   catch (error) { toast(error.message); return; }
   selfOrderSettingsSaving = true;
-  const slideCount = Math.max(0, Math.min(4, Number(form.get("selfOrderPromoSlideCount") || 0) || 0));
-  const slides = normalizeSelfOrderPromoSlides(Array.from({ length: slideCount }, (_, index) => ({
+  const slideIndexes = [...form.keys()].map(name => /^selfOrderPromoImage_(\d+)$/.exec(name)?.[1]).filter(index => index !== undefined);
+  const slides = normalizeSelfOrderPromoSlides(slideIndexes.map(index => ({
     image: String(form.get(`selfOrderPromoImage_${index}`) || "").trim(),
     productId: String(form.get(`selfOrderPromoTargetProductId_${index}`) || "").trim(),
     label: String(form.get(`selfOrderPromoButtonLabel_${index}`) || "Order Now").trim() || "Order Now"
