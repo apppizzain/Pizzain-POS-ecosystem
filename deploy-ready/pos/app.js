@@ -6859,6 +6859,35 @@ function normalizeLegacyCashierShift(row) {
   };
 }
 
+async function lookupReceiptCashierShift(paidAt) {
+  if (!legacyCashierClient) return null;
+  const paymentTime = Date.parse(paidAt);
+  if (!Number.isFinite(paymentTime)) return null;
+  const earliestShiftStart = new Date(paymentTime - 24 * 60 * 60 * 1000).toISOString();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2000);
+  try {
+    const { data, error } = await legacyCashierClient.from("shift_history")
+      .select("session_id,cashier,status,opened_at,closed_at")
+      .in("shift", ["shift1", "shift2"])
+      .gte("opened_at", earliestShiftStart)
+      .lte("opened_at", paidAt)
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .abortSignal(controller.signal);
+    const session = data?.[0];
+    if (error || !session) return null;
+    if (session.closed_at ? !(Date.parse(session.closed_at) > paymentTime) : session.status !== "open") return null;
+    const shift = normalizeLegacyCashierShift(session);
+    const name = String(shift.cashier).trim();
+    return name && shift.sessionId ? { name, sessionId: shift.sessionId } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function normalizeLegacyCashierExpense(row) {
   return {
     id: row.id || "",
@@ -8433,6 +8462,7 @@ function receiptDemoOrder() {
     customer: "",
     serviceInfo: "A1",
     paymentMethod: "Tunai",
+    paymentBreakdown: { receiptCashier: { name: "Contoh Kasir" } },
     receivedAmount: 50000,
     changeAmount: 8000,
     createdAt: new Date().toISOString(),
@@ -8476,6 +8506,7 @@ function receiptPrintWidth(settings = state.settings || {}) {
 function receiptPrintModel(order = null) {
   const settings = state.settings || {};
   const source = order || receiptDemoOrder();
+  const cashierName = String(normalizePaymentBreakdown(source.paymentBreakdown || source.payment_breakdown).receiptCashier?.name || "").trim();
   const items = source.items || source.cart || [];
   const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
   const total = orderTotal(source) || items.reduce((sum, item) => sum + cartItemTotal(item), 0);
@@ -8509,7 +8540,7 @@ function receiptPrintModel(order = null) {
     ].filter(Boolean),
     metaLines: [
       { type: "center", text: receiptDateText(source.createdAt) },
-      ...(settings.receiptShowCashierLabel ? [{ label: "Kasir", value: state.activeUser || "Admin" }] : []),
+      ...(settings.receiptShowCashierLabel && cashierName ? [{ label: "Kasir", value: cashierName }] : []),
       ...(settings.receiptShowReceiptNumber ? [{ label: "No. struk", value: displayOrderNumber(source.number) }] : []),
       ...(customerText ? [{ label: "Pelanggan", value: customerText }] : []),
       ...(settings.receiptShowReceiptCode ? [{ label: "Kode struk", value: receiptCode }] : []),
@@ -9812,6 +9843,7 @@ function setLastResult(title, message, order) {
     paid: order.paymentStatus === "Lunas",
     receivedAmount: order.receivedAmount || 0,
     changeAmount: order.changeAmount || 0,
+    paymentBreakdown: order.paymentBreakdown || {},
     printReceipt: !!order.printReceipt
   }));
   sessionStorage.setItem("pos_mobile_view", "cart");
@@ -9830,6 +9862,7 @@ function printLastReceipt() {
     grandTotal: result.total,
     receivedAmount: result.receivedAmount,
     changeAmount: result.changeAmount,
+    paymentBreakdown: result.paymentBreakdown || {},
     items: []
   });
 }
@@ -11980,7 +12013,7 @@ function renderPosCartPanel() {
             `}
           </div>
           <div class="final-action-grid">
-            <button class="btn pos-pay-button" onclick="submitOrder()" ${cart.length ? "" : "disabled"}>Bayar</button>
+            <button class="btn pos-pay-button" onclick="submitOrderFromButton(this)" ${cart.length ? "" : "disabled"}>Bayar</button>
             <button class="btn pay-later-button" onclick="saveOrderPayLater()" ${cart.length ? "" : "disabled"}>BAYAR NANTI</button>
           </div>
         </div>
@@ -13055,6 +13088,20 @@ function clearPosDraft() {
   ["pos_discount", "pos_discount_type", "pos_order_type", "pos_customer_name", "pos_service_info", "pos_order_note", "pos_payment_method", "pos_received_amount", "pos_split_cash_amount", "pos_split_qris_amount", "pos_split_payment_target", "pos_print_receipt", "pos_pay_unpaid_id", "pos_correction_order_id"].forEach(key => sessionStorage.removeItem(key));
 }
 
+let posPaymentSubmitting = false;
+
+async function submitOrderFromButton(button) {
+  if (posPaymentSubmitting) return;
+  posPaymentSubmitting = true;
+  button.disabled = true;
+  try {
+    await submitOrder();
+  } finally {
+    posPaymentSubmitting = false;
+    button.disabled = false;
+  }
+}
+
 async function submitOrder() {
   if (!state.cashSession.open) return toast("Buka kas terlebih dahulu.");
   if (!cart.length) return toast("Keranjang masih kosong.");
@@ -13086,6 +13133,7 @@ async function submitOrder() {
         return toast(limitedStockFailureMessage(stockCommit.product || stockValidation.product, stockCommit.variantKey || "", stockCommit));
       }
     }
+    const receiptCashier = await lookupReceiptCashierShift(updateCreatedAt);
     existingOrder.customer = customerDisplayName(document.getElementById("customerName")?.value);
     existingOrder.serviceInfo = document.getElementById("serviceInfo")?.value || existingOrder.serviceInfo || "-";
     existingOrder.note = additionalItems.length ? (existingOrder.note || "") : submittedOrderNote;
@@ -13094,7 +13142,7 @@ async function submitOrder() {
     existingOrder.paymentMethod = paymentMethod;
     existingOrder.receivedAmount = paymentPayload.receivedAmount;
     existingOrder.changeAmount = paymentPayload.changeAmount;
-    existingOrder.paymentBreakdown = paymentPayload.paymentBreakdown;
+    existingOrder.paymentBreakdown = { ...paymentPayload.paymentBreakdown, ...(receiptCashier ? { receiptCashier } : {}) };
     existingOrder.printReceipt = printReceipt;
     existingOrder.subtotal = subtotal;
     existingOrder.discount = discount;
@@ -13180,6 +13228,9 @@ async function submitOrder() {
   if (!stockCommit.accepted) {
     return toast(limitedStockFailureMessage(stockCommit.product || stockValidation.product, stockCommit.variantKey || "", stockCommit));
   }
+  order.paidAt = new Date().toISOString();
+  const receiptCashier = await lookupReceiptCashierShift(order.paidAt);
+  if (receiptCashier) order.paymentBreakdown = { ...order.paymentBreakdown, receiptCashier };
   order.limitedStockCommitToken = stockCommit.token || "";
   const touchedProductIds = applyLimitedStockItems(order.items, -1, `Penjualan ${order.number}`);
   for (const item of order.items) {
