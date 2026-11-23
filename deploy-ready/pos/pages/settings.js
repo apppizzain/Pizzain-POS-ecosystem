@@ -48,7 +48,7 @@ function renderNotificationSettingsTab() {
   return `
     <section class="settings-panel settings-single-panel notification-settings-panel">
       <div class="section-title">
-        <div><h3>Notifikasi</h3><p>Atur peringatan native APK untuk pesanan baru kasir dan dapur.</p></div>
+        <div><h3>Notifikasi</h3><p>Atur notifikasi Android untuk pesanan baru.</p></div>
       </div>
       <form class="notification-settings-form" onchange="handleNotificationSettingsDraftChange(this)" onsubmit="saveNotificationSettings(event)">
         <div class="notification-status-card">
@@ -58,12 +58,11 @@ function renderNotificationSettingsTab() {
         <div class="notification-switch-list">
           ${receiptSwitch("deviceNotificationsEnabled", "Bunyikan notifikasi di perangkat ini", deviceOrderNotificationsEnabled())}
           ${receiptSwitch("orderNotificationsEnabled", "Aktifkan notifikasi pesanan baru untuk toko", settings.orderNotificationsEnabled !== false)}
-          ${receiptSwitch("orderNotificationKitchen", "Aktif di halaman Dapur", settings.orderNotificationKitchen !== false)}
           ${receiptSwitch("orderNotificationOrders", "Aktif di halaman Pesanan", settings.orderNotificationOrders !== false)}
         </div>
         <div class="notification-category-card">
           <div>
-            <strong>Dapur hanya bunyi untuk kategori</strong>
+            <strong>Pesanan hanya bunyi untuk kategori</strong>
             <span>${selectedKitchenCategories.length ? `${selectedKitchenCategories.length} pilihan aktif di perangkat ini` : "Semua kategori produk; Konfirmasi dipilih terpisah"}</span>
           </div>
           <div class="notification-category-grid">

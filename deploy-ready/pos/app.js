@@ -70,7 +70,6 @@ const ORDER_TYPES = [
 const navItems = [
   ["dashboard", "&#9638;", "Dashboard"],
   ["pos", "&#9633;", "Penjualan"],
-  ["kitchen", "&#9832;", "Dapur"],
   ["orders", "&#9776;", "Pesanan"],
   ["selforder", "&#9749;", "Self Order"],
   ["products", "&#9634;", "Produk"],
@@ -83,7 +82,7 @@ const navItems = [
 const ROLE_DEFINITIONS = {
   owner: {
     label: "Owner",
-    views: ["dashboard", "pos", "kitchen", "orders", "selforder", "products", "stock", "stock-opname", "reports", "settings"]
+    views: ["dashboard", "pos", "orders", "selforder", "products", "stock", "stock-opname", "reports", "settings"]
   },
   manager: {
     label: "Manager",
@@ -95,7 +94,7 @@ const ROLE_DEFINITIONS = {
   },
   dapur: {
     label: "Dapur",
-    views: ["kitchen", "stock", "stock-opname", "settings"]
+    views: ["orders", "stock", "stock-opname", "settings"]
   },
   driver: {
     label: "Driver",
@@ -265,9 +264,9 @@ let supabaseRealtimeLastHealthyAt = 0;
 const supabaseRealtimeReasonHealth = {};
 let realtimeFallbackLastOrderAt = 0;
 let realtimeFallbackLastMasterAt = 0;
-const ORDER_LIVE_REFRESH_VIEWS = new Set(["dashboard", "pos", "kitchen", "orders", "reports"]);
+const ORDER_LIVE_REFRESH_VIEWS = new Set(["dashboard", "pos", "orders", "reports"]);
 const ORDER_NAVIGATION_REFRESH_STALE_MS = 8000;
-const ORDER_NOTIFICATION_VIEWS = new Set(["kitchen", "orders"]);
+const ORDER_NOTIFICATION_VIEWS = new Set(["orders"]);
 const ORDER_NOTIFICATION_DEDUPE_MS = 12000;
 const ORDER_NOTIFICATION_TONES = {
   bell: [
@@ -468,6 +467,7 @@ window.addEventListener("popstate", event => {
     selfOrderHistoryNavigating = false;
     return;
   }
+  if (currentHashView() === "kitchen") return;
   if (handlePosMobileBackNavigation()) return;
   if (handleMainBackNavigation()) return;
 });
@@ -1415,7 +1415,7 @@ function normalizeStaffState() {
   state.staff.roleAccess ||= {};
   Object.entries(defaultAccess).forEach(([role, views]) => {
     const configured = Array.isArray(state.staff.roleAccess[role]) ? state.staff.roleAccess[role] : views;
-    const filtered = configured.filter(id => validViews.includes(id));
+    const filtered = filteredAccessViews(configured);
     if (views.includes("stock") && !filtered.includes("stock")) filtered.push("stock");
     if (views.includes("stock-opname") && !filtered.includes("stock-opname")) filtered.push("stock-opname");
     state.staff.roleAccess[role] = filtered.length ? filtered : [...views];
@@ -1489,7 +1489,7 @@ function allAccessViewIds() {
 
 function filteredAccessViews(values) {
   const validViews = new Set(allAccessViewIds());
-  return [...new Set((values || []).filter(id => validViews.has(id)))];
+  return [...new Set((values || []).map(id => id === "kitchen" ? "orders" : id).filter(id => validViews.has(id)))];
 }
 
 function roleDefaultViews(role = activeRole()) {
@@ -1524,7 +1524,7 @@ function canAccessView(id, role = activeRole()) {
 }
 
 function appAvailableViews() {
-  const views = ["dashboard", "pos", "kitchen", "orders", "selforder", "products", "stock", "stock-opname", "reports", "cash", "audit", "settings"];
+  const views = ["dashboard", "pos", "orders", "selforder", "products", "stock", "stock-opname", "reports", "cash", "audit", "settings"];
   if (IS_SELF_ORDER_APP) return ["selforder"];
   if (IS_POS_APP) return views.filter(id => id !== "selforder");
   return views;
@@ -2087,7 +2087,7 @@ async function pollRealtimeFallback() {
   if (IS_SELF_ORDER_APP) return;
   if (!supabaseReadable() || !localDbReady || navigator.onLine === false) return;
   const now = Date.now();
-  const masterViews = new Set(["dashboard", "pos", "kitchen", "orders", "products", "stock", "stock-opname", "selforder", "settings"]);
+  const masterViews = new Set(["dashboard", "pos", "orders", "products", "stock", "stock-opname", "selforder", "settings"]);
   const orderRealtimeHealthy = supabaseRealtimeReasonHealthy("orders", now);
   const orderFallbackMs = orderRealtimeHealthy
     ? EGRESS_SAVER_ORDER_HEALTHY_FALLBACK_MS
@@ -2180,14 +2180,12 @@ function prepareOrderNotifications() {
 }
 
 function orderNotificationAnyTargetEnabled() {
-  return state.settings?.orderNotificationKitchen !== false
-    || state.settings?.orderNotificationOrders !== false;
+  return state.settings?.orderNotificationOrders !== false;
 }
 
 function orderNotificationAllowedForCurrentView() {
   if (state.settings?.orderNotificationsEnabled === false) return false;
   if (IS_SELF_ORDER_APP || view === "selforder") return false;
-  if (view === "kitchen") return state.settings?.orderNotificationKitchen !== false;
   if (view === "orders") return state.settings?.orderNotificationOrders !== false;
   return orderNotificationAnyTargetEnabled();
 }
@@ -2256,7 +2254,7 @@ function readNotificationSettingsFromForm(target) {
     orderNotificationsEnabled: form.get("orderNotificationsEnabled") === "on",
     orderNotificationSound: form.has("orderNotificationSound") ? form.get("orderNotificationSound") === "on" : true,
     orderNotificationBrowser: form.has("orderNotificationBrowser") ? form.get("orderNotificationBrowser") === "on" : false,
-    orderNotificationKitchen: form.get("orderNotificationKitchen") === "on",
+    orderNotificationKitchen: form.get("orderNotificationOrders") === "on",
     orderNotificationOrders: form.get("orderNotificationOrders") === "on",
     orderNotificationTone: ORDER_NOTIFICATION_TONES[tone] ? tone : "bell",
     orderNotificationVolume: Math.max(0, Math.min(100, Number(form.get("orderNotificationVolume") || 70))),
@@ -2392,7 +2390,7 @@ function orderMatchesKitchenNotificationCategories(order = {}) {
 }
 
 function orderNotificationUsesKitchenCategoryFilter() {
-  return view === "kitchen" || activeStaffRole() === "dapur" || nativePushTarget() === "dapur";
+  return view === "orders" || deviceKitchenNotificationCategories().length > 0;
 }
 
 async function playOrderNotificationSound() {
@@ -2487,8 +2485,8 @@ function cancelNativeOrderReminder(order) {
 
 function nativePushTarget() {
   const role = activeStaffRole();
-  if (deviceKitchenNotificationCategories().length && state.settings?.orderNotificationKitchen !== false) return "dapur";
-  if (role === "dapur" || view === "kitchen") return "dapur";
+  if (deviceKitchenNotificationCategories().length && state.settings?.orderNotificationOrders !== false) return "dapur";
+  if (role === "dapur") return "dapur";
   if (role === "kasir" || view === "pos" || view === "orders") return "kasir";
   return "all";
 }
@@ -2788,7 +2786,6 @@ async function registerDevicePushTokenFromSettings(button) {
 function nativePushEnabledForTarget(target = nativePushTarget()) {
   if (!deviceOrderNotificationsEnabled()) return false;
   if (state.settings?.orderNotificationsEnabled === false) return false;
-  if (target === "dapur") return state.settings?.orderNotificationKitchen !== false;
   if (target === "kasir") return state.settings?.orderNotificationOrders !== false;
   return orderNotificationAnyTargetEnabled();
 }
@@ -2904,7 +2901,7 @@ function flushPendingNativePushOrderRefresh() {
 }
 
 function scheduleNativePushOrderRefresh(route = "orders", attempt = 0, target = {}) {
-  const normalizedRoute = ["kitchen", "orders"].includes(route) ? route : "orders";
+  const normalizedRoute = "orders";
   const nextAttempt = Number(attempt || 0);
   const normalizedTarget = assignNativePushNavigationSession(normalizeNativePushOrderTarget(target));
   try {
@@ -2970,7 +2967,7 @@ function shouldRenderAfterRealtimeLoad(kind) {
     deferredRealtimeRender = true;
     return false;
   }
-  if (view !== "selforder") return ["pos", "kitchen", "orders", "dashboard", "products", "stock", "stock-opname", "settings"].includes(view);
+  if (view !== "selforder") return ["pos", "orders", "dashboard", "products", "stock", "stock-opname", "settings"].includes(view);
   const step = selfOrderStep();
   if (kind === "orders") return step === "success";
   if (kind === "settings" && step === "gateway") return true;
@@ -3483,16 +3480,13 @@ function orderNeedsTakeawayCashier(order) {
 }
 
 function orderNavigationBadgeCount(id) {
-  if (!["orders", "kitchen"].includes(id)) return 0;
-  const pending = (state.orders || []).filter(order => isNewOrderStatus(order) && !orderIsCancelled(order) && orderVisibleInPosOrderList(order));
-  if (id === "orders") return pending.length;
-  const dismissed = typeof kitchenDismissedTakeawayNotices === "function" ? kitchenDismissedTakeawayNotices() : new Set();
-  return pending.filter(order => (orderNeedsTakeawayCashier(order) && !dismissed.has(order.supabaseId))
-    || (typeof kitchenOrderIsVisible === "function" && kitchenOrderIsVisible(order, "Pesanan Baru", ["Pesanan Baru"]))).length;
+  if (id !== "orders") return 0;
+  return (state.orders || []).filter(order => orderWorkStatus(order) === "Pesanan Baru"
+    && !orderIsCancelled(order) && orderVisibleInPosOrderList(order)).length;
 }
 
 function renderOrderNavigationBadge(id) {
-  if (!["orders", "kitchen"].includes(id)) return "";
+  if (id !== "orders") return "";
   const count = orderNavigationBadgeCount(id);
   return `<span class="order-nav-count" data-order-nav-count="${id}" aria-label="${count} pesanan baru" ${count ? "" : "hidden"}>${count}</span>`;
 }
@@ -7987,7 +7981,8 @@ function openStockPage() {
 
 function normalizeView(id) {
   const available = appAvailableViews();
-  const normalized = available.includes(id) ? id : defaultInitialView();
+  const requested = id === "kitchen" ? "orders" : id;
+  const normalized = available.includes(requested) ? requested : defaultInitialView();
   if (IS_SELF_ORDER_APP) return "selforder";
   if (!activeStaff()) return normalized;
   return canAccessView(normalized) ? normalized : defaultViewForStaff();
@@ -8078,7 +8073,6 @@ function pageTitle() {
   return {
     dashboard: "Dashboard",
     pos: "Penjualan",
-    kitchen: "Kitchen System",
     orders: "Pesanan",
     selforder: "Self Order",
     products: "Produk",
@@ -8123,14 +8117,13 @@ function topActions() {
       </button>
     `;
   }
-  if (view === "cash") return `<button class="btn accent" onclick="toggleCashSession()">${state.cashSession.open ? "Tutup Kas" : "Buka Kas"}</button>`;
-  if (view === "kitchen") {
-    return `
-      <button class="stock-opname-qr-btn" type="button" onclick="openStockOpnameQrModal()" title="QR POS" aria-label="Tampilkan QR POS">
-        ${navIcon("qr")}
-      </button>
-    `;
+  if (view === "orders") {
+    return `<button class="orders-stock-button" type="button" onclick="openStockPage()">
+      <span class="orders-stock-icon" aria-hidden="true">${navIcon("products")}</span>
+      <span>Kelola Stok</span>
+    </button>`;
   }
+  if (view === "cash") return `<button class="btn accent" onclick="toggleCashSession()">${state.cashSession.open ? "Tutup Kas" : "Buka Kas"}</button>`;
   if (["dashboard", "reports"].includes(view)) {
     return `<button class="top-sync-btn ${dataRefreshLoading ? "loading" : ""}" onclick="refreshVisibleData()" title="Refresh data" aria-label="Refresh data">${navIcon("sync")}</button>`;
   }
@@ -8144,7 +8137,6 @@ function route() {
   return {
     dashboard: renderDashboard,
     pos: renderPos,
-    kitchen: renderKitchen,
     orders: renderOrders,
     selforder: renderSelfOrder,
     products: renderProducts,
@@ -11657,6 +11649,7 @@ function renderSelfOrderSuccess() {
   const moveInline = selfOrderMoveTableInlineVisible() && canMove;
   const currentTable = liveOrder?.serviceInfo || order?.table || "A-1";
   const orderCreatedAt = liveOrder?.createdAt || order?.createdAt || "";
+  const orderStatus = window.SOTakeaway?.dineInStatusLabel?.(order, liveOrder) || "Menunggu diproses";
   const successHero = window.SOTakeaway?.renderHero?.({
     title: "Pesanan diterima",
     note: `Pesananmu akan diantar ke meja ${currentTable}.`,
@@ -11676,10 +11669,11 @@ function renderSelfOrderSuccess() {
           <span><b>Nomor order</b><strong class="so-takeaway-detail-copy">${escapeHtml(displayOrderNumber(order?.number || "-"))}</strong></span>
           <span><b>Waktu order</b><strong class="so-takeaway-detail-copy">${escapeHtml(orderCreatedAt ? timeOnly(orderCreatedAt) : "-")}</strong></span>
           <span class="so-takeaway-total-row"><b>Nominal</b><strong>${money(order?.checkoutTotal ?? order?.total ?? 0)}</strong></span>
+          <span><b>Status pesanan</b><strong class="so-takeaway-detail-copy" role="status">${escapeHtml(orderStatus)}</strong></span>
           <span><b>Status bayar</b><strong class="so-takeaway-payment-copy">Bayar di Kasir saat pulang</strong></span>
           <span><b>Nama pelanggan</b><strong class="so-takeaway-detail-copy">${customer ? escapeHtml(customer) : "-"}</strong></span>
         </div>
-        <p class="fresin-so-order-hint">Pesanan akan diproses ±20 menit. Untuk tambah pesanan, scan ulang QR Code atau klik tombol di bawah. Terima kasih!</p>
+        <p class="fresin-so-order-hint">Untuk tambah pesanan, scan ulang QR Code atau klik tombol di bawah.</p>
         <div class="self-order-success-actions">
           ${window.SOTakeaway.renderSuccessActions("selfOrderShowMenu()")}
           ${moveInline ? renderSelfOrderSuccessMoveInline(currentTable) : ""}
@@ -13459,7 +13453,7 @@ function openKitchenAvailability() {
   openModal(`
     <div class="section-title kitchen-availability-title">
       <div><h3>Ketersediaan Barang</h3><p>Ketuk barang untuk menandai habis atau tersedia. Klik barang untuk mengatur varian tertentu.</p></div>
-      <div class="toolbar"><button class="btn" type="button" data-product-form-close onclick="closeModal()">Tutup</button></div>
+      <div class="toolbar"><button class="btn" type="button" data-product-form-close onclick="closeModal({ skipHistory: true })">Tutup</button></div>
     </div>
     <div class="kitchen-availability-summary">
       <div><span>Total</span><strong>${availabilitySummary.total}</strong></div>
@@ -13474,7 +13468,7 @@ function openKitchenAvailability() {
     <div class="kitchen-menu-list">
       ${products.map(product => kitchenAvailabilityItemHtml(product)).join("") || empty("Tidak ada barang pada kategori ini.")}
     </div>
-  `);
+  `, { skipHistory: true });
 }
 
 function kitchenAvailabilityItemHtml(product) {
@@ -13851,17 +13845,33 @@ function nextKitchenAction(status) {
   }[status];
 }
 
-function advanceOrder(id) {
+function orderWorkStatus(order) {
+  if (order.status === "Pesanan Baru" && window.SOTakeaway?.canFinishAfterAcceptance(order)) {
+    return "Sedang Disiapkan";
+  }
+  return order.status;
+}
+
+function orderWorkAction(order) {
+  if (!order.items?.length || orderIsCancelled(order) || !orderVisibleInPosOrderList(order)) return "";
+  const status = orderWorkStatus(order);
+  const label = status === "Pesanan Baru" ? "Proses Pesanan" : status === "Sedang Disiapkan" ? "Selesai" : "";
+  if (!label) return "";
+  return `<button class="btn so-takeaway-process-btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); advanceOrder(${escapeHtml(JSON.stringify(order.id))}, { fromOrders: true })">${label}</button>`;
+}
+
+function advanceOrder(id, { fromOrders = false } = {}) {
   const order = state.orders.find(item => item.id === id);
-  if (!order) return;
+  if (!order || (fromOrders && (!activeStaff() || !canAccessView("orders")
+    || orderIsCancelled(order) || !orderVisibleInPosOrderList(order)))) return;
   if (!order.items?.length) return toast("Rincian pesanan belum tersedia. Muat ulang pesanan terlebih dahulu.", 4800);
-  if (order.status === "Sedang Disiapkan" && !areAllKitchenItemsPrepared(order)) {
+  if (!fromOrders && order.status === "Sedang Disiapkan" && !areAllKitchenItemsPrepared(order)) {
     return toast("Centang semua item yang sudah siap terlebih dahulu.");
   }
   const next = {
     "Pesanan Baru": ["Sedang Disiapkan", "preparedAt"],
     "Sedang Disiapkan": ["Selesai", "completedAt"]
-  }[order.status];
+  }[fromOrders ? orderWorkStatus(order) : order.status];
   if (!next) return;
   const wasNewOrder = isNewOrderStatus(order);
   order.status = next[0];
@@ -13871,7 +13881,16 @@ function advanceOrder(id) {
     order.preparedItems ||= {};
     sanitizeKitchenPreparedItems(order);
   }
-  if (order.status === "Selesai") lockKitchenPreparedBatches(order);
+  if (order.status === "Selesai") {
+    if (fromOrders && sessionStorage.getItem("orders_quick_filter") === "Sedang Disiapkan") {
+      sessionStorage.setItem("orders_quick_filter", "Semua");
+    }
+    if (fromOrders && (order.type === "Delivery"
+      || String(order.customerOrderType || order.customer_order_type || "").toUpperCase() === "DELIVERY")) {
+      order.readyAt ||= order.completedAt;
+    }
+    lockKitchenPreparedBatches(order);
+  }
   audit("Status pesanan diubah", `${order.number} menjadi ${order.status}`);
   setKitchenOptimisticOrderMutation(order, {
     status: order.status,
@@ -14349,13 +14368,14 @@ function renderOrders() {
     ["Delivery", "Delivery"],
     ["Batal", "Dibatalkan"]
   ];
-  const periodOrders = state.orders.filter(order => orderInOrdersRange(order, dateRange));
+  const periodOrders = state.orders.filter(order => orderInOrdersRange(order, dateRange)
+    || (dateRange.period === "today" && !orderIsCancelled(order)
+      && ["Pesanan Baru", "Sedang Disiapkan"].includes(orderWorkStatus(order))));
   const posOrders = periodOrders.filter(orderVisibleInPosOrderList);
-  const newOrders = posOrders.filter(order => order.status === "Pesanan Baru");
-  const processOrders = posOrders.filter(order => order.status === "Sedang Disiapkan");
+  const newOrders = posOrders.filter(order => orderWorkStatus(order) === "Pesanan Baru");
+  const processOrders = posOrders.filter(order => orderWorkStatus(order) === "Sedang Disiapkan");
   const doneOrders = posOrders.filter(order => order.status === "Selesai");
   const unpaid = posOrders.filter(order => order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan");
-  const orderSummary = reportOrderSummary(dateRange);
   const reportOnlyOrders = reportOnlyCompletedOrders(dateRange, posOrders);
   const filtered = posOrders.filter(order => orderMatchesQuickFilter(order, quickFilter));
   const filteredReportOrders = reportOnlyOrders.filter(order => orderMatchesQuickFilter(order, quickFilter));
@@ -14364,7 +14384,7 @@ function renderOrders() {
   requestReportOrderDetails(visibleOrders);
   const visibleSequences = orderSequenceMap(visibleOrders);
   const visibleCount = visibleOrders.length;
-  const doneCount = orderSummary.loaded ? orderSummary.totalDone : doneOrders.length;
+  const doneCount = doneOrders.length + reportOnlyOrders.length;
   const statCards = [
     ["Baru", newOrders.length, "Pesanan", "Pesanan Baru", "new"],
     ["Diproses", processOrders.length, "Pesanan", "Sedang Disiapkan", "process"],
@@ -14418,7 +14438,11 @@ function orderInOrdersRange(order, range) {
   const createdAt = new Date(order?.createdAt || order?.created_at || 0);
   if (!Number.isNaN(createdAt.getTime()) && createdAt >= range.start && createdAt <= range.end) return true;
   if (range.period !== "today") return false;
-  if (["Selesai", "Dibatalkan"].includes(order?.status) || order?.paymentStatus === "Lunas") return false;
+  if (order?.status === "Selesai") {
+    const completedAt = new Date(order.completedAt || order.completed_at || 0);
+    return completedAt >= range.start && completedAt <= range.end;
+  }
+  if (order?.status === "Dibatalkan" || order?.paymentStatus === "Lunas") return false;
   const activityAt = orderListActivityAt(order);
   if (!activityAt || activityAt === order?.createdAt || activityAt === order?.created_at) return false;
   const activityDate = new Date(activityAt);
@@ -14426,8 +14450,8 @@ function orderInOrdersRange(order, range) {
 }
 
 function ordersEntryStableSort(a, b) {
-  const bTime = new Date(orderListActivityAt(b) || 0).getTime();
-  const aTime = new Date(orderListActivityAt(a) || 0).getTime();
+  const bTime = Date.parse(kitchenOrderActivityAt(b)) || 0;
+  const aTime = Date.parse(kitchenOrderActivityAt(a)) || 0;
   if (bTime !== aTime) return bTime - aTime;
   return String(b.number || b.id || "").localeCompare(String(a.number || a.id || ""), "id", { numeric: true, sensitivity: "base" });
 }
@@ -14447,7 +14471,7 @@ function orderSearchText(order) {
 
 function orderMatchesQuickFilter(order, quickFilter) {
   return quickFilter === "Semua"
-    || order.status === quickFilter
+    || orderWorkStatus(order) === quickFilter
     || order.type === quickFilter
     || (quickFilter === "Belum Lunas" && order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan");
 }
@@ -14625,6 +14649,7 @@ function orderCenterCard(order, options = {}) {
   }).join("");
   const actions = [
     options.contact?.actions,
+    orderWorkAction(order),
     order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan" ? `<button class="btn green" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>` : "",
     order.paymentStatus === "Lunas" || (order.status !== "Dibatalkan" && (order.items || order.cart || []).length) ? `
       <details class="orders-print-dropdown" onclick="event.stopPropagation()">

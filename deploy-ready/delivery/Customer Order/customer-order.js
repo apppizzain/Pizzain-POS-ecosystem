@@ -351,9 +351,10 @@
   function homeLifecycleCustomerStatus(order) {
     const status = String(order?.status || order?.order_status || "").trim().toLowerCase();
     const delivery = homeOrderKind(order) === "DELIVERY";
-    if (status === "selesai") return delivery ? "READY_FOR_PICKUP" : "COMPLETED";
-    if (status === "siap diambil") return delivery ? "READY_FOR_PICKUP" : "READY";
-    if (status === "sedang disiapkan" || status === "dikonfirmasi") return "PREPARING";
+    if (status === "selesai" || order?.completedAt || order?.completed_at) return delivery ? "READY_FOR_PICKUP" : "COMPLETED";
+    if (status === "siap diambil" || order?.readyAt || order?.ready_at) return delivery ? "READY_FOR_PICKUP" : "READY";
+    if (status === "sedang disiapkan" || status === "dikonfirmasi" || order?.preparedAt || order?.prepared_at
+      || (!delivery && (order?.confirmedAt || order?.confirmed_at))) return "PREPARING";
     return "";
   }
 
@@ -1702,8 +1703,7 @@
       return lifecycle || (order.confirmedAt ? "ACCEPTED" : "WAITING_ACCEPTANCE");
     }
     if (homeOrderKind(order) === "DELIVERY") {
-      if (!homeIsPaid(order) && stored) return stored === "WAITING_PAYMENT" ? "SEARCHING_DRIVER" : stored;
-      if (!homeIsPaid(order)) return "SEARCHING_DRIVER";
+      if (!homeIsPaid(order)) return homePreferAdvancedCustomerStatus(stored === "WAITING_PAYMENT" ? "" : stored, lifecycle) || "SEARCHING_DRIVER";
     }
     if (!homeIsPaid(order)) return "WAITING_PAYMENT";
     if (stored && stored !== "WAITING_PAYMENT") return homePreferAdvancedCustomerStatus(stored, lifecycle);

@@ -104,15 +104,14 @@
   }
 
   function soTakeawayStatusLabel(order) {
-    if (soTakeawayIsExpired(order)) return "KEDALUWARSA";
-    if (order?.status === "Dibatalkan") return "DIBATALKAN";
-    if (soTakeawayIsCompleted(order)) return "SELESAI";
-    if (soTakeawayKitchenAccepted(order)) return "DIPROSES DAPUR";
-    return soTakeawayIsReleasedToKitchen(order) ? "DITERIMA KASIR" : "MENUNGGU KASIR";
+    if (soTakeawayIsExpired(order)) return "Kedaluwarsa";
+    if (order?.status === "Dibatalkan") return "Dibatalkan";
+    if (soTakeawayIsCompleted(order)) return "Selesai";
+    return soTakeawayIsReleasedToKitchen(order) ? "Diproses" : "Menunggu kasir";
   }
 
   function soTakeawayIsReleasedToKitchen(order) {
-    return Boolean(order?.confirmedAt || soTakeawayKitchenAccepted(order));
+    return Boolean(order?.confirmedAt || order?.confirmed_at || soTakeawayKitchenAccepted(order));
   }
 
   function soTakeawayCanProcessOrder(order) {
@@ -134,26 +133,27 @@
     try {
       releaseLock = await acquireOrderSyncLock(order);
       await ensureSupabaseProfile();
-      // Only acknowledge cashier acceptance; never rewrite payment, items or kitchen progress.
       const now = new Date().toISOString();
-      let query = supabaseClient.from("orders").update({ confirmed_at: now, updated_at: now });
+      let query = supabaseClient.from("orders").update({ status: "Sedang Disiapkan", confirmed_at: now, prepared_at: now, updated_at: now });
       query = order.supabaseId ? query.eq("id", order.supabaseId) : query.eq("order_number", order.number);
       const { data, error } = await query.eq("status", "Pesanan Baru")
         .is("cancelled_at", null).is("confirmed_at", null)
-        .select("id,confirmed_at").maybeSingle();
+        .select("id,status,confirmed_at,prepared_at").maybeSingle();
       if (error) throw error;
       if (!data?.confirmed_at) {
         toast("Pesanan telah berubah di perangkat lain. Muat ulang daftar pesanan.", 4800);
         return;
       }
       const currentOrder = (state.orders || []).find(item => item.id === id) || order;
+      currentOrder.status = data.status || "Sedang Disiapkan";
       currentOrder.confirmedAt = data.confirmed_at;
+      currentOrder.preparedAt = data.prepared_at || data.confirmed_at;
       currentOrder.updatedAt = now;
       currentOrder.supabaseId = data.id;
       audit("Takeaway diterima kasir", order.number);
       saveState();
       broadcastRealtimeEvent("orders");
-      toast("Pesanan diterima dan dikirim ke dapur. Pembayaran bisa dilakukan nanti.", 3600);
+      toast("Pesanan sedang diproses. Pembayaran bisa dilakukan nanti.", 3600);
       notifyNativePushForOrder(currentOrder, { eventType: "new_order" })
         .catch(error => console.warn("Takeaway acceptance notification failed", error));
     } catch (error) {
@@ -261,6 +261,55 @@
         || (takeawayNumber && soTakeawayNumber(order) === takeawayNumber)
       )
     )) || null;
+  }
+
+  let dineInStatusLoading = false;
+  let dineInStatusSnapshot = null;
+
+  function dineInStatusLabel(snapshot, liveOrder) {
+    const order = snapshot?.number && dineInStatusSnapshot?.number === snapshot.number
+      ? dineInStatusSnapshot : liveOrder;
+    if (["Dibatalkan", "Batal"].includes(order?.status) || order?.cancelledAt) return "Dibatalkan";
+    if (["Selesai", "Siap Diambil"].includes(order?.status) || order?.completedAt) return "Selesai";
+    if (soTakeawayIsReleasedToKitchen(order)) return "Diproses";
+    return "Menunggu diproses";
+  }
+
+  async function refreshDineInStatus() {
+    if (document.hidden || soTakeawayIsMode() || window.CustomerOrder?.isMode?.()
+      || !(IS_SELF_ORDER_APP || view === "selforder")
+      || sessionStorage.getItem("self_order_step") !== "success"
+      || typeof selfOrderLastOrderSnapshot !== "function" || !supabaseReadable() || !localDbReady
+      || dineInStatusLoading) return;
+    const snapshot = selfOrderLastOrderSnapshot();
+    if (!snapshot?.number || snapshot.orderMode === TAKEAWAY_MODE) return;
+    dineInStatusLoading = true;
+    try {
+      const { data, error } = await supabaseClient.from("orders")
+        .select("order_number,status,confirmed_at,prepared_at,completed_at,cancelled_at")
+        .eq("order_number", snapshot.number).eq("type", "Dine In").limit(1).maybeSingle();
+      if (error || !data || selfOrderLastOrderSnapshot()?.number !== snapshot.number) return;
+      const liveOrder = selfOrderLastLiveOrder();
+      const previous = dineInStatusLabel(snapshot, liveOrder);
+      dineInStatusSnapshot = {
+        number: data.order_number,
+        status: data.status,
+        confirmedAt: data.confirmed_at,
+        preparedAt: data.prepared_at,
+        completedAt: data.completed_at,
+        cancelledAt: data.cancelled_at
+      };
+      if (previous !== dineInStatusLabel(snapshot, liveOrder)
+        && sessionStorage.getItem("self_order_step") === "success") {
+        if (typeof isBlockingInteractionActive === "function" && isBlockingInteractionActive()) {
+          deferredRealtimeRender = true;
+        } else render();
+      }
+    } catch (error) {
+      console.warn("Dine In status refresh failed", error);
+    } finally {
+      dineInStatusLoading = false;
+    }
   }
 
   function soTakeawayShouldRefreshStatus() {
@@ -504,8 +553,8 @@
         ["process", "Proses", "Pesanan belum diproses.", false, "3"]
       ]
       : [
-        ["accept", accepted ? "Diterima kasir" : "Menunggu kasir", accepted ? "Pesanan sudah diteruskan ke dapur." : "Menunggu kasir menerima pesanan.", true, accepted ? "&#10003;" : "1"],
-        ["process", processing ? "Diproses" : "Menunggu diproses", processing ? "Pesanan sedang disiapkan." : "Dapur akan menyiapkan pesanan setelah diterima kasir.", accepted, processing ? "&#10003;" : "2"],
+        ["accept", "Pesanan masuk", "Pesanan menunggu diproses.", true, "&#10003;"],
+        ["process", "Diproses", "Pesanan sedang disiapkan.", accepted || processing || completed, processing || completed ? "&#10003;" : "2"],
         ["done", "Selesai", completed ? "Pesanan sudah selesai." : "Tunggu sampai pesanan siap diambil.", completed, completed ? "&#10003;" : "3"]
       ];
     return `
@@ -584,7 +633,7 @@
     const order = liveOrder || snapshot;
     const paid = soTakeawayIsPaid(order) || String(order.status || snapshot.status || "") === "PAID";
     const expired = soTakeawayIsExpired(order) || String(order.status || snapshot.status || "") === "EXPIRED";
-    const processing = soTakeawayKitchenAccepted(order);
+    const processing = soTakeawayIsReleasedToKitchen(order);
     const completed = soTakeawayIsCompleted(order);
     const accepted = soTakeawayIsReleasedToKitchen(order);
     const cancelled = order.status === "Dibatalkan" || Boolean(order.cancelledAt);
@@ -599,9 +648,8 @@
       : cancelled ? (order.cancelReason || "Pesanan ini telah dibatalkan.")
         : completed ? "Pesanan sudah selesai dan siap diambil."
         : processing ? "Pesanan sedang disiapkan oleh dapur."
-        : accepted ? "Kasir sudah menerima pesanan anda."
         : "Menunggu kasir menerima pesanan anda.";
-    const statusTone = expired || cancelled ? "cancelled" : completed ? "completed" : processing ? "processing" : accepted ? "accepted" : "waiting";
+    const statusTone = expired || cancelled ? "cancelled" : completed ? "completed" : processing ? "processing" : "waiting";
     return `
       <main class="self-order-main success so-takeaway-success">
         <section class="self-order-success-card so-takeaway-status-card ${paid ? "is-paid" : "is-pending"} ${expired ? "is-expired" : ""}">
@@ -793,6 +841,7 @@
     const chatUrl = `https://wa.me/${phone}`;
     const canConfirm = order.status === "Pesanan Baru" && !order.confirmedAt && !order.confirmed_at
       && !order.cancelledAt && !order.cancelled_at && !soTakeawayIsExpired(order);
+    const icon = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.7a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.3-4.3a8.5 8.5 0 1 1 15.7-4.5Z"/><path d="M9.1 8.1c-1 .1-1.4 1.1-.9 2.3 1 2.4 3 4.1 5.1 4.8 1.4.4 2.3-.1 2.4-1.2l-2.1-1.2-.8.8c-1.4-.6-2.4-1.5-3-2.8l.7-.8-1.4-1.9Z"/></svg>`;
     let confirmation = "";
     if (canConfirm) {
       const message = [
@@ -805,11 +854,12 @@
         "",
         "Apakah rincian pesanan ini sudah benar, Kak?"
       ].join("\n");
-      confirmation = `<a class="btn green" href="${chatUrl}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Konfirmasi</a>`;
+      confirmation = `<a class="btn green so-takeaway-whatsapp-confirm" href="${chatUrl}?text=${encodeURIComponent(message)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${icon} Konfirmasi</a>`;
     }
-    const chat = `<a class="btn so-takeaway-whatsapp-chat" href="${chatUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="Chat WhatsApp pelanggan" title="Chat WhatsApp">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.7a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.3-4.3a8.5 8.5 0 1 1 15.7-4.5Z"/><path d="M9.1 8.1c-1 .1-1.4 1.1-.9 2.3 1 2.4 3 4.1 5.1 4.8 1.4.4 2.3-.1 2.4-1.2l-2.1-1.2-.8.8c-1.4-.6-2.4-1.5-3-2.8l.7-.8-1.4-1.9Z"/></svg>
-    </a>`;
+    const chat = !canConfirm && soTakeawayIsReleasedToKitchen(order)
+      ? `<a class="btn so-takeaway-whatsapp-chat" href="${chatUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="Chat WhatsApp pelanggan" title="Chat WhatsApp">
+      ${icon} Chat
+    </a>` : "";
     return {
       phoneChip: `<span class="so-takeaway-whatsapp-number" aria-label="Nomor WhatsApp ${soTakeawayEscape(rawPhone)}">${soTakeawayEscape(rawPhone)}</span>`,
       actions: confirmation + chat
@@ -821,6 +871,11 @@
     const expanded = sessionStorage.getItem(`orders_expanded_${order.id}`) === "1";
     const delivery = soTakeawayIsDelivery(order);
     const statusLabel = delivery ? soTakeawayDeliveryStatusLabel(order) : soTakeawayStatusLabel(order);
+    const effectiveStatus = typeof orderWorkStatus === "function" ? orderWorkStatus(order) : order.status;
+    const cardStatus = ["Dibatalkan", "Kedaluwarsa"].includes(statusLabel) ? "is-cancelled"
+      : statusLabel === "Selesai" || effectiveStatus === "Selesai" ? "is-done"
+      : effectiveStatus === "Sedang Disiapkan" ? "is-process"
+      : order.status === "Pesanan Baru" ? "is-new" : "";
     const serviceLabel = soTakeawayServiceLabel(order);
     const contact = soTakeawayWhatsAppContact(order);
     const header = `<span class="so-takeaway-type-chip">${serviceLabel}</span><strong class="so-takeaway-order-number">${soTakeawayEscape(customerDisplayName(order.customer) || "-")}</strong>`;
@@ -830,8 +885,25 @@
     const searchAttributes = Object.prototype.hasOwnProperty.call(options, "searchQuery")
       ? `data-order-search="${soTakeawayEscape(orderSearchText(order))}" ${orderMatchesSearch(order, options.searchQuery) ? "" : "hidden"}` : "";
     const processing = soTakeawayProcessingIds.has(order.id);
-    const processAction = soTakeawayCanProcessOrder(order)
+    const processAction = !delivery && soTakeawayCanProcessOrder(order)
       ? `<button class="btn so-takeaway-process-btn" type="button" ${processing ? 'disabled aria-busy="true"' : ""} onclick="event.preventDefault(); event.stopPropagation(); SOTakeaway.processOrder('${order.id}')">${processing ? "Memproses..." : "Proses Pesanan"}</button>` : "";
+    const paid = soTakeawayIsPaid(order);
+    const released = soTakeawayIsReleasedToKitchen(order);
+    const active = order.status !== "Dibatalkan" && !soTakeawayIsExpired(order);
+    const workAction = active && !processAction && (delivery || released)
+      && typeof orderWorkAction === "function" ? orderWorkAction(order) : "";
+    const canPay = !paid && active && (delivery || released);
+    const canPrintKitchen = !delivery && active && released && (order.items || order.cart || []).length;
+    const customerReceiptAction = paid
+      ? `<button class="btn ${delivery ? "green orders-print-receipt-btn" : ""}" type="button" onclick="event.preventDefault(); event.stopPropagation(); this.closest('details')?.removeAttribute('open'); printOrderCardReceipt(${soTakeawayEscape(JSON.stringify(order.id))})">${delivery ? "Print Struk" : "Struk Pelanggan"}</button>` : "";
+    const printAction = delivery ? customerReceiptAction : paid || canPrintKitchen ? `
+      <details class="orders-print-dropdown" onclick="event.stopPropagation()">
+        <summary class="btn green orders-print-receipt-btn">Print Struk</summary>
+        <div class="orders-print-options">
+          ${canPrintKitchen ? kitchenPrintButtons(order.id, "orders-kitchen-print-btn") : ""}
+          ${customerReceiptAction}
+        </div>
+      </details>` : "";
     const deleteAction = typeof canDeleteOrderCard === "function" && canDeleteOrderCard(order)
       ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openDeleteOrderDialog('${order.id}')">Hapus</button>`
       : "";
@@ -850,16 +922,17 @@
           ${pickupNote}
           ${cardNote ? `<p class="orders-item-group-note"><b>Catatan:</b> ${soTakeawayEscape(cardNote)}</p>` : ""}
           ${contact.actions ? `<div class="orders-card-actions">${contact.actions}</div>` : ""}
-          ${processAction}
-          <button class="btn green so-takeaway-pay-btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>
+          ${processAction || workAction}
+          ${canPay ? `<button class="btn green so-takeaway-pay-btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>` : ""}
+          ${printAction ? `<div class="orders-card-actions">${printAction}</div>` : ""}
           ${deleteAction}
         </article>
       `;
     }
     const groups = groupedOrderItems(order);
+    const firstOrderNote = soTakeawayPosDeliveryNote(orderGroupNote(order, groups.find(group => group.batch === 1)));
     const itemPreview = groups.map(group => {
-      const rawGroupNote = orderGroupNote(order, group);
-      const groupNote = soTakeawayPosDeliveryNote(rawGroupNote);
+      const groupNote = group.batch === 1 ? "" : soTakeawayPosDeliveryNote(orderGroupNote(order, group));
       return `
         <div class="orders-item-group">
           ${groups.length > 1 ? `<small>${soTakeawayEscape(group.label)}</small>` : ""}
@@ -875,23 +948,22 @@
     }).join("");
     const actions = [
       contact.actions,
-      processAction,
-      order.paymentStatus !== "Lunas" && order.status !== "Dibatalkan"
+      processAction || workAction,
+      canPay
         ? `<button class="btn green" type="button" onclick="event.preventDefault(); event.stopPropagation(); payUnpaidOrder('${order.id}')">Bayar</button>`
         : "",
-      soTakeawayIsPaid(order)
-        ? `<button class="btn green orders-print-receipt-btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); printOrderCardReceipt('${order.id}')">Print Struk</button>` : "",
+      printAction,
       typeof canCancelOrder === "function" && canCancelOrder(order)
         ? `<button class="btn red" type="button" onclick="event.preventDefault(); event.stopPropagation(); openCancelOrderDialog('${order.id}', ${options.returnToUnpaid ? "true" : "false"})">Batalkan</button>` : "",
       deleteAction
     ].filter(Boolean).join("");
     return `
-      <article class="orders-card unpaid-detail-card so-takeaway-card ${expanded ? "is-expanded" : ""}" ${searchAttributes} ${options.returnToUnpaid ? `onclick="toggleOrderItems('${order.id}', true)"` : ""}>
+      <article class="orders-card unpaid-detail-card so-takeaway-card ${cardStatus} ${expanded ? "is-expanded" : ""}" ${searchAttributes} ${options.returnToUnpaid ? `onclick="toggleOrderItems('${order.id}', true)"` : ""}>
         <div class="orders-card-head">
           <div class="so-takeaway-card-identity">
             <div class="order-title-row so-takeaway-order-heading">${orderSequenceBadge(options.sequenceNumber)}${header}</div>
           </div>
-          <span class="orders-status-pill ready ${statusLabel === "MENUNGGU KASIR" ? "is-waiting" : ""}">${soTakeawayEscape(statusLabel)}</span>
+          <span class="orders-status-pill ready ${statusLabel === "Menunggu kasir" ? "is-waiting" : ""}">${soTakeawayEscape(statusLabel)}</span>
         </div>
         <div class="so-takeaway-order-meta-line">
           <span class="so-takeaway-order-time">${soTakeawayDateTime(order.createdAt)}</span>
@@ -901,7 +973,9 @@
             <span>${soTakeawayIsPaid(order) ? "Lunas" : "Belum dibayar"}</span>
           </div>
         </div>
-        <div class="orders-card-items">${pickupNote}${itemPreview || `<span class="muted">Belum ada rincian item.</span>`}</div>
+        ${pickupNote}
+        ${firstOrderNote ? `<p class="orders-item-group-note"><b>Catatan:</b> ${soTakeawayEscape(firstOrderNote)}</p>` : ""}
+        <div class="orders-card-items">${itemPreview || `<span class="muted">Belum ada rincian item.</span>`}</div>
         <div class="orders-card-total"><span>${qty} barang</span><strong>${soTakeawayMoney(orderTotal(order))}</strong></div>
         ${actions ? `<div class="orders-card-actions">${actions}</div>` : ""}
       </article>
@@ -1066,6 +1140,8 @@
       isMode: soTakeawayIsMode,
       isOrder: soTakeawayIsOrder,
       processOrder: soTakeawayProcessOrder,
+      canFinishAfterAcceptance: order => soTakeawayIsOrder(order) && !soTakeawayIsDelivery(order)
+        && !soTakeawayIsExpired(order) && soTakeawayIsReleasedToKitchen(order),
       renderDetails: soTakeawayDetailHtml,
       renderHero: soTakeawayResultHero,
       renderSuccessActions: soTakeawaySuccessActions,
@@ -1074,6 +1150,7 @@
       openReceipt: soTakeawayOpenReceipt,
       closeReceipt: soTakeawayCloseReceipt,
       renderProgress: soTakeawayStatusBar,
+      dineInStatusLabel,
       showActiveOrder() {
         const order = soTakeawayActiveOrder();
         if (!order) return toast("Tidak ada pesanan Takeaway aktif.");
@@ -1097,10 +1174,19 @@
 
     if (!window.__soTakeawayStatusRefreshTimer) {
       document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) soTakeawayRefreshActiveOrderFromSupabase({ force: true });
+        if (!document.hidden) {
+          soTakeawayRefreshActiveOrderFromSupabase({ force: true });
+          refreshDineInStatus();
+        }
       });
-      window.__soTakeawayStatusRefreshTimer = window.setInterval(soTakeawayRefreshActiveOrderFromSupabase, TAKEAWAY_STATUS_REFRESH_MS);
-      window.setTimeout(() => soTakeawayRefreshActiveOrderFromSupabase({ force: true }), 1200);
+      window.__soTakeawayStatusRefreshTimer = window.setInterval(() => {
+        soTakeawayRefreshActiveOrderFromSupabase();
+        refreshDineInStatus();
+      }, TAKEAWAY_STATUS_REFRESH_MS);
+      window.setTimeout(() => {
+        soTakeawayRefreshActiveOrderFromSupabase({ force: true });
+        refreshDineInStatus();
+      }, 1200);
     }
   }
 

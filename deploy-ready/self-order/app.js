@@ -11550,6 +11550,7 @@ function renderSelfOrderSuccess() {
   const moveInline = selfOrderMoveTableInlineVisible() && canMove;
   const currentTable = liveOrder?.serviceInfo || order?.table || "A-1";
   const orderCreatedAt = liveOrder?.createdAt || order?.createdAt || "";
+  const orderStatus = window.SOTakeaway?.dineInStatusLabel?.(order, liveOrder) || "Menunggu diproses";
   const successHero = window.SOTakeaway?.renderHero?.({
     title: "Pesanan diterima",
     note: `Pesananmu akan diantar ke meja ${currentTable}.`,
@@ -11569,10 +11570,11 @@ function renderSelfOrderSuccess() {
           <span><b>Nomor order</b><strong class="so-takeaway-detail-copy">${escapeHtml(displayOrderNumber(order?.number || "-"))}</strong></span>
           <span><b>Waktu order</b><strong class="so-takeaway-detail-copy">${escapeHtml(orderCreatedAt ? timeOnly(orderCreatedAt) : "-")}</strong></span>
           <span class="so-takeaway-total-row"><b>Nominal</b><strong>${money(order?.checkoutTotal ?? order?.total ?? 0)}</strong></span>
+          <span><b>Status pesanan</b><strong class="so-takeaway-detail-copy" role="status">${escapeHtml(orderStatus)}</strong></span>
           <span><b>Status bayar</b><strong class="so-takeaway-payment-copy">Bayar di Kasir saat pulang</strong></span>
           <span><b>Nama pelanggan</b><strong class="so-takeaway-detail-copy">${customer ? escapeHtml(customer) : "-"}</strong></span>
         </div>
-        <p class="fresin-so-order-hint">Pesanan akan diproses ±20 menit. Untuk tambah pesanan, scan ulang QR Code atau klik tombol di bawah. Terima kasih!</p>
+        <p class="fresin-so-order-hint">Untuk tambah pesanan, scan ulang QR Code atau klik tombol di bawah.</p>
         <div class="self-order-success-actions">
           ${window.SOTakeaway.renderSuccessActions("selfOrderShowMenu()")}
           ${moveInline ? renderSelfOrderSuccessMoveInline(currentTable) : ""}

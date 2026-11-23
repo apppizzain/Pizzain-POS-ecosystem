@@ -576,6 +576,22 @@
   line-height: 1.2;
 }
 
+.view-orders .orders-card.so-takeaway-card.is-new {
+  background: linear-gradient(120deg, #f9fcff, #e5f1ff);
+  border-color: #b5d4fa;
+}
+
+.view-orders .orders-card.so-takeaway-card.is-process {
+  background: linear-gradient(120deg, #fffdf7, #fff2ce);
+  border-color: #ead18b;
+}
+
+.view-orders .orders-card.is-done,
+.view-orders .orders-card.so-takeaway-card.is-done {
+  background: linear-gradient(120deg, #f1faf3, #d8f0df);
+  border-color: #a7d4b4;
+}
+
 .orders-card.so-takeaway-card > .orders-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .so-takeaway-card-identity { min-width: 0; flex: 1; }
 .so-takeaway-card .so-takeaway-order-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
@@ -686,10 +702,14 @@
 .fresin-so-success .fresin-so-table-notice .self-order-success-warning { margin: 0; color: #1d5182; font-size: 13px; line-height: 1.4; font-weight: 750; }
 .fresin-so-success .fresin-so-table-notice .self-order-success-warning-hint { margin: 4px 0 0; color: #617b96; font-size: 11px; line-height: 1.55; }
 
+.so-takeaway-whatsapp-confirm,
 .so-takeaway-whatsapp-chat {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 5px;
+}
+.so-takeaway-whatsapp-chat {
   color: #237449;
 }
 .so-takeaway-whatsapp-number { white-space: nowrap; }
