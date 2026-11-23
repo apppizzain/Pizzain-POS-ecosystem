@@ -14046,31 +14046,55 @@ function canDeleteOrderCard(order) {
   return Boolean(order?.id) && activeRole() === "owner";
 }
 
-function hasDeliveryDeleteOwnerSession() {
-  const user = supabaseSession?.user;
+function hasDeliveryDeleteOwnerSession(session = supabaseSession) {
+  const user = session?.user;
   return Boolean(user && !user.is_anonymous && user.app_metadata?.pizzain_pos_role === "owner");
 }
 
-function openDeliveryDeleteOwnerLogin() {
+async function checkDeliveryDeleteOwnerSession() {
+  if (!supabaseClient?.auth) return false;
+  // The primary Supabase client restores saved sessions and refreshes expired access tokens.
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    if (error.name === "AuthRetryableFetchError") throw error;
+    return false;
+  }
+  return hasDeliveryDeleteOwnerSession(data?.session);
+}
+
+function openDeliveryDeleteOwnerLogin(orderId) {
   openModal(`
-    <h2>Masuk sebagai Owner</h2>
-    <p>Gunakan akun Supabase Owner untuk menghapus pesanan Delivery. Setelah masuk, buka kembali tombol Hapus.</p>
+    <h2>Aktifkan akses Owner di perangkat ini</h2>
+    <p>Masuk sekali dengan akun Supabase Owner. Selama sesi masih aktif, kamu bisa menghapus pesanan Delivery tanpa mengisi data login lagi.</p>
     <form class="grid" onsubmit="signInDeliveryDeleteOwner(event)">
+      <input type="hidden" name="orderId" value="${escapeHtml(orderId)}" />
       <label class="field"><span>Email</span><input name="email" type="email" autocomplete="username" required /></label>
       <label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required /></label>
-      <button class="btn primary" type="submit">Masuk</button>
+      <button class="btn primary" type="submit">Aktifkan</button>
     </form>`, { skipHistory: true });
 }
 
 async function signInDeliveryDeleteOwner(event) {
+  const orderId = String(new FormData(event.currentTarget).get("orderId") || "");
   await signInSupabase(event);
-  if (hasDeliveryDeleteOwnerSession()) closeModal();
+  if (!hasDeliveryDeleteOwnerSession()) return;
+  closeModal();
+  await openDeleteOrderDialog(orderId);
 }
 
-function openDeleteOrderDialog(id) {
-  const order = state.orders.find(item => item.id === id);
+async function openDeleteOrderDialog(id) {
+  let order = state.orders.find(item => item.id === id);
   if (!canDeleteOrderCard(order)) return toast("Hapus pesanan hanya untuk Owner.");
-  if (orderHasDeliveryDeleteRestriction(order) && !hasDeliveryDeleteOwnerSession()) return openDeliveryDeleteOwnerLogin();
+  if (orderHasDeliveryDeleteRestriction(order)) {
+    try {
+      const ownerSession = await checkDeliveryDeleteOwnerSession();
+      order = state.orders.find(item => item.id === id);
+      if (!canDeleteOrderCard(order)) return toast("Hapus pesanan hanya untuk Owner.");
+      if (!ownerSession) return openDeliveryDeleteOwnerLogin(id);
+    } catch {
+      return toast("Sesi Owner belum bisa diperiksa. Periksa koneksi lalu coba lagi.");
+    }
+  }
   openConfirmDialog({
     title: "Hapus card pesanan",
     message: `Hapus permanen ${displayOrderNumber(order.number)}?`,
@@ -14086,11 +14110,15 @@ function openDeleteOrderDialog(id) {
 async function deleteOrderCard(id) {
   const order = state.orders.find(item => item.id === id);
   if (!canDeleteOrderCard(order)) return toast("Hapus pesanan hanya untuk Owner.");
-  if (orderHasDeliveryDeleteRestriction(order) && !hasDeliveryDeleteOwnerSession()) return toast("Masuk dengan akun Supabase Owner terlebih dahulu.");
   if (deleteOrderProcessingIds.has(id)) return;
   if (!canAttemptSupabaseSync()) return toast("Supabase belum tersambung. Hapus permanen belum bisa dilakukan.");
   deleteOrderProcessingIds.add(id);
   try {
+    if (orderHasDeliveryDeleteRestriction(order)) {
+      const ownerSession = await checkDeliveryDeleteOwnerSession();
+      if (!canDeleteOrderCard(order)) return toast("Hapus pesanan hanya untuk Owner.");
+      if (!ownerSession) return openDeliveryDeleteOwnerLogin(id);
+    }
     await deleteOrderFromSupabase(order);
     const stockRestore = await restoreOrderStockBeforeDelete(order);
     state.orders = state.orders.filter(item => item.id !== id);
@@ -14161,7 +14189,7 @@ async function restoreOrderStockBeforeDelete(order) {
 async function deleteOrderFromSupabase(order) {
   if (!order || !canAttemptSupabaseSync()) return false;
   if (orderHasDeliveryDeleteRestriction(order)) {
-    if (!canDeleteOrderCard(order) || !hasDeliveryDeleteOwnerSession()) throw new Error("Akun Supabase Owner diperlukan.");
+    if (!canDeleteOrderCard(order)) throw new Error("Akun Owner diperlukan.");
     if (!order.supabaseId || !order.number) throw new Error("Identitas pesanan Delivery belum tersinkron. Muat ulang daftar pesanan.");
     const { data, error } = await supabaseClient.rpc("owner_delete_delivery_order", {
       p_order_id: order.supabaseId,
