@@ -1147,12 +1147,10 @@ function profitShiftNonCashTotal(rows) {
   }, 0);
 }
 
-function profitShiftValidation(shiftKey, cashStart, cashEnd, expenseTotal, rows) {
+function profitShiftValidation(cashStart, cashEnd, expenseTotal, rows) {
   const nonCashTotal = profitShiftNonCashTotal(rows);
   const expectedOmzet = rows.reduce((sum, item) => sum + Number(item.bucket.total || 0), 0);
-  const actualOmzet = shiftKey === "shift2"
-    ? cashEnd - cashStart + expenseTotal + nonCashTotal
-    : cashEnd + expenseTotal + nonCashTotal;
+  const actualOmzet = cashEnd - cashStart + expenseTotal + nonCashTotal;
   const difference = actualOmzet - expectedOmzet;
   return {
     nonCashTotal,
@@ -1257,7 +1255,7 @@ function renderProfitShiftBadge(shiftKey, sessions, rows, extraExpenses = []) {
   const cashEnd = sessions.reduce((sum, session) => sum + Number(session.cashEnd || 0), 0);
   const expenseTotal = sessions.reduce((sum, session) => sum + Number(session.expenseTotal || 0), 0) + extraExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const omzet = rows.reduce((sum, item) => sum + Number(item.bucket.total || 0), 0);
-  const validation = profitShiftValidation(shiftKey, cashStart, cashEnd, expenseTotal, rows);
+  const validation = profitShiftValidation(cashStart, cashEnd, expenseTotal, rows);
   const validationClass = validation.isBalanced ? "is-balanced" : "is-different";
   const validationLabel = validation.isBalanced ? "Kas Pas" : "Selisih";
   const validationValue = validation.isBalanced ? "Pas" : signedMoney(validation.difference);
