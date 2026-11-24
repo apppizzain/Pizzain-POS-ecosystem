@@ -714,13 +714,122 @@
 }
 .so-takeaway-whatsapp-number { white-space: nowrap; }
 
-.so-takeaway-payment #soTakeawayPickupTiming {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid #c4c6d0;
-  border-radius: 12px;
-  padding: 8px 12px;
-  background: #fff;
-  color: inherit;
+.so-takeaway-payment .so-takeaway-pickup-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #f2cbc7;
+  border-radius: 16px;
+  background: #fff9f7;
+}
+
+.so-takeaway-pickup-picker h3 {
+  margin: 0 0 8px;
+  color: #571a22;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.so-takeaway-pickup-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #f2cbc7;
+  border-radius: 14px;
+  background: #fdf4f2;
+}
+
+.so-takeaway-pickup-choices button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #672631;
   font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.so-takeaway-pickup-choices button[aria-pressed="true"] {
+  background: #ad1027;
+  color: #fff;
+}
+
+.so-takeaway-pickup-choices button:focus-visible {
+  outline: 2px solid #ad1027;
+  outline-offset: 2px;
+}
+
+.so-takeaway-pickup-clock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: #8c2032;
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.so-takeaway-clock-column {
+  width: 58px;
+  text-align: center;
+}
+
+.so-takeaway-payment .so-takeaway-clock-column input {
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid #f2cbc7;
+  border-radius: 11px;
+  background: #fff;
+  appearance: textfield;
+  touch-action: none;
+  cursor: ns-resize;
+  text-align: center;
+  color: #672631;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.so-takeaway-clock-column input::-webkit-inner-spin-button,
+.so-takeaway-clock-column input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.so-takeaway-clock-column:focus-within {
+  padding: 3px;
+  border: 1px solid #f2cbc7;
+  border-radius: 12px;
+  background: #fff3f1;
+}
+
+.so-takeaway-clock-option {
+  display: none;
+}
+
+.so-takeaway-clock-column:focus-within .so-takeaway-clock-option {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #8c4650;
+  font: 650 13px/1 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.so-takeaway-clock-column:focus-within .so-takeaway-clock-option:hover,
+.so-takeaway-clock-column:focus-within .so-takeaway-clock-option:focus-visible {
+  background: #fae1de;
+}
+
+.so-takeaway-pickup-clock .so-takeaway-clock-zone {
+  color: #8c4650;
+  font-size: 11px;
+  font-weight: 750;
 }

@@ -621,10 +621,58 @@
   }
 
   function soTakeawaySetPickupTiming(timing) {
-    if (timing === "scheduled") sessionStorage.setItem("so_takeaway_pickup_time", "");
-    else sessionStorage.removeItem("so_takeaway_pickup_time");
+    if (timing === "scheduled") {
+      const outletTime = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).format(new Date());
+      sessionStorage.setItem("so_takeaway_pickup_time", outletTime);
+    } else sessionStorage.removeItem("so_takeaway_pickup_time");
     render();
-    document.getElementById(timing === "scheduled" ? "soTakeawayPickupTime" : "soTakeawayPickupTiming")?.focus();
+    document.getElementById(timing === "scheduled" ? "soTakeawayPickupScheduled" : "soTakeawayPickupNow")?.focus();
+  }
+
+  function soTakeawaySavePickupTime() {
+    const parts = ["Hour", "Minute"].map(part => {
+      const input = document.getElementById(`soTakeawayPickup${part}`);
+      const value = input?.value || "";
+      const count = part === "Hour" ? 24 : 60;
+      input?.closest(".so-takeaway-clock-column")?.querySelectorAll("[data-pickup-offset]").forEach(button => {
+        button.textContent = soTakeawayPickupAdjacent(value, count, Number(button.dataset.pickupOffset));
+      });
+      return value ? value.padStart(2, "0") : "";
+    });
+    sessionStorage.setItem("so_takeaway_pickup_time", parts.join(":"));
+  }
+
+  function soTakeawayPickupAdjacent(value, count, offset) {
+    const current = Math.min(count - 1, Math.max(0, Number(value)));
+    return String((current + offset + count) % count).padStart(2, "0");
+  }
+
+  function soTakeawayStepPickupTime(part, offset) {
+    const input = document.getElementById(`soTakeawayPickup${part}`);
+    const count = part === "Hour" ? 24 : 60;
+    const current = input.value === "" ? (offset > 0 ? -1 : 0)
+      : Math.min(count - 1, Math.max(0, Number(input.value)));
+    input.value = soTakeawayPickupAdjacent(current < 0 ? count - 1 : current, count, offset);
+    soTakeawaySavePickupTime();
+  }
+
+  function soTakeawayStartPickupSwipe(event) {
+    if (!event.isPrimary || event.button !== 0) return;
+    const input = event.currentTarget;
+    input.dataset.swipeStart = String(event.clientY);
+    input.setPointerCapture(event.pointerId);
+  }
+
+  function soTakeawayEndPickupSwipe(event, part) {
+    const input = event.currentTarget;
+    const start = input.dataset.swipeStart;
+    delete input.dataset.swipeStart;
+    if (start === undefined) return;
+    const distance = Number(start) - event.clientY;
+    if (Math.abs(distance) < 12) return;
+    soTakeawayStepPickupTime(part, Math.sign(distance) * Math.max(1, Math.round(Math.abs(distance) / 24)));
   }
 
   function soTakeawayRenderPayment() {
@@ -634,6 +682,7 @@
     const phone = sessionStorage.getItem("so_takeaway_customer_phone") || "";
     const note = sessionStorage.getItem("self_order_checkout_note") || "";
     const pickupTime = sessionStorage.getItem("so_takeaway_pickup_time");
+    const [pickupHour, pickupMinute] = (pickupTime || "").split(":");
     const submitLabel = selfOrderSubmitting
       ? `<span class="self-order-btn-spinner" aria-hidden="true"></span><span>Mengirim pesanan</span>`
       : "Buat Pesanan";
@@ -661,20 +710,28 @@
               <small id="selfOrderCustomerError" class="self-order-customer-error" role="alert" hidden>Nama wajib diisi.</small>
             </label>
             <label class="wide">
-              <span class="self-order-field-label">Nomor WhatsApp</span>
-              <input id="soTakeawayCustomerPhone" type="tel" autocomplete="tel" value="${soTakeawayEscape(phone)}" placeholder="Contoh 081234567890" required oninput="sessionStorage.setItem('so_takeaway_customer_phone', this.value)" />
+              <span class="self-order-field-label">Nomor WhatsApp Aktif</span>
+              <input id="soTakeawayCustomerPhone" type="tel" autocomplete="tel" value="${soTakeawayEscape(phone)}" placeholder="Nomor WhatsApp Aktif" required oninput="sessionStorage.setItem('so_takeaway_customer_phone', this.value)" />
             </label>
-            <label class="wide">
-              <span class="self-order-field-label">Jam pengambilan</span>
-              <select id="soTakeawayPickupTiming" onchange="SOTakeaway.setPickupTiming(this.value)">
-                <option value="now" ${pickupTime === null ? "selected" : ""}>Segera</option>
-                <option value="scheduled" ${pickupTime !== null ? "selected" : ""}>Pilih jam</option>
-              </select>
-            </label>
-            ${pickupTime !== null ? `<label class="wide">
-              <span class="self-order-field-label">Pilih jam pengambilan</span>
-              <input id="soTakeawayPickupTime" type="time" value="${soTakeawayEscape(pickupTime)}" required oninput="sessionStorage.setItem('so_takeaway_pickup_time', this.value)" />
-            </label>` : ""}
+            <section class="wide so-takeaway-pickup-picker" aria-labelledby="soTakeawayPickupTitle">
+              <h3 id="soTakeawayPickupTitle">Jam pengambilan</h3>
+              <div class="so-takeaway-pickup-choices">
+                <button id="soTakeawayPickupNow" type="button" aria-pressed="${pickupTime === null}" onclick="if (this.getAttribute('aria-pressed') === 'false') SOTakeaway.setPickupTiming('now')">Segera</button>
+                <button id="soTakeawayPickupScheduled" type="button" aria-pressed="${pickupTime !== null}" onclick="if (this.getAttribute('aria-pressed') === 'false') SOTakeaway.setPickupTiming('scheduled')">Pilih jam</button>
+              </div>
+              ${pickupTime !== null ? `<div class="so-takeaway-pickup-clock">
+                ${[["Hour", "Jam", 23, pickupHour], ["Minute", "Menit", 59, pickupMinute]].map(([part, label, max, value]) => `
+                  <div class="so-takeaway-clock-column">
+                    ${[-2, -1, 0, 1, 2].map(offset => offset ? `
+                      <button class="so-takeaway-clock-option" type="button" data-pickup-offset="${offset}"
+                        aria-label="${offset > 0 ? "Tambah" : "Kurangi"} ${label.toLowerCase()} ${Math.abs(offset)}"
+                        onclick="SOTakeaway.stepPickupTime('${part}', ${offset})">${soTakeawayPickupAdjacent(value, max + 1, offset)}</button>
+                    ` : `<input id="soTakeawayPickup${part}" type="number" inputmode="numeric" min="0" max="${max}" step="1" aria-label="${label}" placeholder="--" value="${soTakeawayEscape(value || "")}" oninput="SOTakeaway.savePickupTime()" onpointerdown="SOTakeaway.startPickupSwipe(event)" onpointerup="SOTakeaway.endPickupSwipe(event, '${part}')" onpointercancel="delete this.dataset.swipeStart" />`).join("")}
+                  </div>
+                `).join('<span aria-hidden="true">:</span>')}
+                <small class="so-takeaway-clock-zone">WIB</small>
+              </div>` : ""}
+            </section>
             <label class="wide"><span class="self-order-field-label">Catatan</span><textarea id="selfOrderCheckoutNote" placeholder="Catatan pesanan (opsional)" rows="2" oninput="sessionStorage.setItem('self_order_checkout_note', this.value)">${soTakeawayEscape(note)}</textarea></label>
           </div>
         </section>
@@ -753,7 +810,7 @@
     if (pickupTime !== "Secepatnya" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(pickupTime)) {
       selfOrderSubmitError = "Pilih jam pengambilan yang valid.";
       render();
-      document.getElementById("soTakeawayPickupTime")?.focus();
+      document.getElementById("soTakeawayPickupHour")?.focus();
       return;
     }
     if (!canAttemptSupabaseSync()) {
@@ -1208,6 +1265,10 @@
       isOrder: soTakeawayIsOrder,
       processOrder: soTakeawayProcessOrder,
       setPickupTiming: soTakeawaySetPickupTiming,
+      savePickupTime: soTakeawaySavePickupTime,
+      stepPickupTime: soTakeawayStepPickupTime,
+      startPickupSwipe: soTakeawayStartPickupSwipe,
+      endPickupSwipe: soTakeawayEndPickupSwipe,
       canFinishAfterAcceptance: order => soTakeawayIsOrder(order) && !soTakeawayIsDelivery(order)
         && !soTakeawayIsExpired(order) && soTakeawayIsReleasedToKitchen(order),
       renderDetails: soTakeawayDetailHtml,
