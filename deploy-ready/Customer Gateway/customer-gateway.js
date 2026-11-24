@@ -385,8 +385,8 @@
     if (service === "dinein") return tableMode() ? markMenu(service) : undefined;
     if (window.FresinOnlineHours?.allow() === false) return;
     if (homeMode() || (service === "pickup" && takeawayMode())) return markMenu(service);
-    const pickupPath = tableMode() ? "/pesan/" : (window.FRESIN_PICKUP_URL || "/order/");
-    const target = new URL(service === "delivery" ? "/pesan/" : pickupPath, location.href);
+    const pickupPath = tableMode() ? "/delivery/" : (window.FRESIN_PICKUP_URL || "/order/");
+    const target = new URL(service === "delivery" ? "/delivery/" : pickupPath, location.href);
     if (target.origin !== location.origin) return toast("Tautan layanan tidak tersedia.");
     if (!switchDraftContext(service === "delivery" ? "delivery" : tableMode() ? "home-pickup" : "takeaway")) return;
     target.searchParams.set("mode", service === "delivery" ? "delivery" : tableMode() ? "pickup" : "takeaway");
@@ -411,7 +411,7 @@
     }
     selfOrderCart = [];
     saveSelfOrderCart();
-    const url = new URL(homeMode() ? "/pesan/" : "/order/", location.href);
+    const url = new URL(homeMode() ? "/delivery/" : "/order/", location.href);
     if (new URL(location.href).searchParams.get("origin") === "outlet") url.searchParams.set("origin", "outlet");
     sessionStorage.setItem("self_order_step", "gateway");
     history.pushState({ ...(history.state || {}), selfOrderStep: "gateway", fresinService: null }, "", url.href);
@@ -552,7 +552,7 @@
     }
     if (order.finalStatus) return openOrdersStep("saved-receipt", order.number);
     if (!activeOnThisPage(order)) {
-      const target = new URL(order.mode === "pickup" || order.mode === "delivery" ? "/pesan/" : "/order/", location.origin);
+      const target = new URL(order.mode === "pickup" || order.mode === "delivery" ? "/delivery/" : "/order/", location.origin);
       if (order.mode === "dinein") target.searchParams.set("table", order.table);
       else target.searchParams.set("mode", order.mode);
       sessionStorage.setItem("fresin_open_saved_order", order.number);

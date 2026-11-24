@@ -3,6 +3,11 @@
   "trailingSlash": true,
   "redirects": [
     {
+      "source": "/pesan/",
+      "destination": "/order/",
+      "permanent": false
+    },
+    {
       "source": "/self-order/",
       "destination": "/order/",
       "permanent": false
@@ -39,7 +44,7 @@
     },
     {
       "source": "/",
-      "destination": "/pesan/",
+      "destination": "/order/",
       "permanent": false
     }
   ],
