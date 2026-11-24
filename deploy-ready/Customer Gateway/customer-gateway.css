@@ -1055,3 +1055,8 @@ html.fresin-gateway-open .view-selforder .page { min-height: 0; }
 .fresin-my-order-meta small { color: #71555c; font-size: 11px; }
 .fresin-my-order-total { color: #8a1630; font-size: 13px; white-space: nowrap; }
 .fresin-my-order-arrow { color: #8a1630; font-size: 20px; }
+
+.self-order-app .so-takeaway-payment > .self-order-finish:is(:enabled, [aria-busy="true"]) {
+  background: var(--pizzain-action, #ad1027);
+  color: #fff;
+}

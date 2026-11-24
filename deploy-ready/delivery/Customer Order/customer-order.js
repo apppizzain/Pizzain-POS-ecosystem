@@ -62,6 +62,10 @@
     const { search, hash } = homeParams();
     const modeValues = [search.get("mode"), search.get("type"), hash.get("mode"), hash.get("type")]
       .map(value => String(value || "").toLowerCase().replace(/[\s_-]+/g, ""));
+    if (window.PIZZAIN_UNIFIED_ORDER === true) {
+      const legacyTakeaway = search.get("mode") === "takeaway" && search.get("legacy") === "1";
+      return !legacyTakeaway && !modeValues.includes("dinein") && !selfOrderTableCodeFromUrl();
+    }
     return path === "/delivery/" || path === "/delivery" || path.startsWith("/delivery/status/")
       || path === "/order/" || path === "/order" || path.startsWith("/order/status/")
       || modeValues.includes("homeorder") || modeValues.includes("delivery");
@@ -1409,14 +1413,14 @@
             </div>
             ${method === "PICKUP_PREORDER" ? `<section class="customer-home-pickup-timing" aria-labelledby="customerHomePickupHeading">
               <div class="customer-home-pickup-heading">
-                <span class="customer-home-pickup-clock" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="11" fill="#fff9ee" stroke="currentColor" stroke-width="1.8"/><path d="M16 9v7l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 4 4 7m21-3 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+                <span class="customer-home-pickup-clock" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 9v7l4 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 4 4 7m21-3 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
                 <strong id="customerHomePickupHeading">Jam pengambilan</strong>
               </div>
               <div class="customer-home-timing-options" role="group" aria-label="Waktu pengambilan">
                 <button type="button" aria-pressed="${pickupNow}" onclick="CustomerOrder.setPickupTiming('now')">Segera</button>
                 <button type="button" aria-pressed="${!pickupNow}" onclick="CustomerOrder.setPickupTiming('scheduled')">Pilih jam</button>
               </div>
-              ${pickupNow ? '<small>Disiapkan secepatnya setelah diterima kasir.</small>' : `<label class="self-order-customer-field ${errors.PickupTime ? "invalid" : ""}"><span class="sr-only">Pilih jam pengambilan</span><input id="customerHomePickupTime" type="time" value="${/^\d{2}:\d{2}$/.test(pickupTime) ? homeEscape(pickupTime) : ""}" onclick="CustomerOrder.openPickupTimePicker()" oninput="CustomerOrder.captureCheckout('PickupTime')" ${homeCheckoutInvalidAttrs("PickupTime")} />${homeCheckoutFieldError("PickupTime")}</label>`}
+              ${pickupNow ? '<small>Disiapkan secepatnya setelah diterima kasir.</small>' : `<label class="self-order-customer-field ${errors.PickupTime ? "invalid" : ""}"><span class="sr-only">Pilih jam pengambilan</span><span class="customer-home-pickup-time-row"><input id="customerHomePickupTime" type="time" value="${/^\d{2}:\d{2}$/.test(pickupTime) ? homeEscape(pickupTime) : ""}" onclick="CustomerOrder.openPickupTimePicker()" oninput="CustomerOrder.captureCheckout('PickupTime')" ${homeCheckoutInvalidAttrs("PickupTime")} /><span class="customer-home-pickup-zone">WIB</span></span>${homeCheckoutFieldError("PickupTime")}</label>`}
             </section>` : ""}
             <label class="wide"><span class="sr-only">Catatan Pesanan</span><textarea id="customerHomeNote" placeholder="Catatan pesanan (opsional)" oninput="CustomerOrder.captureCheckout()">${homeInputValue("customerHomeNote", "note")}</textarea></label>
           </div>

@@ -22,6 +22,9 @@
 
   function soTakeawayIsMode() {
     const { search, hash } = soTakeawayUrlParams();
+    if (typeof window !== "undefined" && window.PIZZAIN_UNIFIED_ORDER === true) {
+      return search.get("mode") === "takeaway" && search.get("legacy") === "1";
+    }
     const values = [
       search.get("type"),
       search.get("mode"),
