@@ -8894,10 +8894,11 @@ function kitchenReceiptModel(order, kind, profile = receiptPrintProfile(kind)) {
     : "";
   const firstName = receiptNormalizePrintText(order.customer).split(/\s+/)[0];
   const customer = profile.showCustomer && firstName !== "-" ? firstName : "";
-  const heading = [service, customer].filter(Boolean).join(" - ");
+  const headingDetail = serviceKey === "dinein" ? table : customer;
+  const heading = [service, headingDetail].filter(Boolean).join(" - ");
   const headingLines = heading.length <= widthChars ? [heading] : [
     ...receiptWrapText(service, widthChars),
-    ...(customer ? [customer.length <= widthChars ? customer : customer.slice(0, widthChars - 3) + "..."] : [])
+    ...(headingDetail ? [headingDetail.length <= widthChars ? headingDetail : headingDetail.slice(0, widthChars - 3) + "..."] : [])
   ];
   const orderNote = profile.showNotes ? orderCustomerNoteDisplay(order.note) : "";
   const quantities = items.map(item => `${Number(item.qty || 0)}x`);
@@ -8923,7 +8924,6 @@ function kitchenReceiptModel(order, kind, profile = receiptPrintProfile(kind)) {
       ...headingLines.map(text => ({ type: "center", role: "kitchen-title", text })),
       { type: "pair", label: "Tanggal", value: receiptDateText(order.createdAt) },
       { type: "pair", label: "No. struk", value: orderNumber },
-      ...(table ? [{ type: "pair", label: "Meja", value: table }] : []),
       ...(orderNote ? [{ type: "note", caption: "Note :", text: orderNote, label: "Note : " + orderNote, value: "" }] : [])
     ],
     items: items.flatMap((item, index) => {
