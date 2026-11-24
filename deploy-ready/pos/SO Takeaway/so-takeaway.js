@@ -224,6 +224,7 @@
       paymentMethod: order.paymentMethod || "Bayar di Kasir",
       table: "Takeaway",
       customer: order.customer || "",
+      pickupTime: order.pickupTime || "",
       orderMode: TAKEAWAY_MODE,
       status: order.status,
       paymentStatus: order.paymentStatus,
@@ -436,6 +437,7 @@
     event?.stopPropagation?.();
     sessionStorage.removeItem(TAKEAWAY_ACTIVE_KEY);
     sessionStorage.removeItem("self_order_last_order");
+    sessionStorage.removeItem("so_takeaway_pickup_time");
     sessionStorage.removeItem("self_order_checkout_note");
     sessionStorage.removeItem("self_order_payment");
     if (window.FresinGateway?.restart) return window.FresinGateway.restart();
@@ -618,12 +620,20 @@
     sessionStorage.removeItem("self_order_table");
   }
 
+  function soTakeawaySetPickupTiming(timing) {
+    if (timing === "scheduled") sessionStorage.setItem("so_takeaway_pickup_time", "");
+    else sessionStorage.removeItem("so_takeaway_pickup_time");
+    render();
+    document.getElementById(timing === "scheduled" ? "soTakeawayPickupTime" : "soTakeawayPickupTiming")?.focus();
+  }
+
   function soTakeawayRenderPayment() {
     sessionStorage.setItem("self_order_payment", "cash");
     const activeOrder = soTakeawayActiveOrder();
     const customer = sessionStorage.getItem("self_order_customer") || "";
     const phone = sessionStorage.getItem("so_takeaway_customer_phone") || "";
     const note = sessionStorage.getItem("self_order_checkout_note") || "";
+    const pickupTime = sessionStorage.getItem("so_takeaway_pickup_time");
     const submitLabel = selfOrderSubmitting
       ? `<span class="self-order-btn-spinner" aria-hidden="true"></span><span>Mengirim pesanan</span>`
       : "Buat Pesanan";
@@ -654,6 +664,17 @@
               <span class="self-order-field-label">Nomor WhatsApp</span>
               <input id="soTakeawayCustomerPhone" type="tel" autocomplete="tel" value="${soTakeawayEscape(phone)}" placeholder="Contoh 081234567890" required oninput="sessionStorage.setItem('so_takeaway_customer_phone', this.value)" />
             </label>
+            <label class="wide">
+              <span class="self-order-field-label">Jam pengambilan</span>
+              <select id="soTakeawayPickupTiming" onchange="SOTakeaway.setPickupTiming(this.value)">
+                <option value="now" ${pickupTime === null ? "selected" : ""}>Segera</option>
+                <option value="scheduled" ${pickupTime !== null ? "selected" : ""}>Pilih jam</option>
+              </select>
+            </label>
+            ${pickupTime !== null ? `<label class="wide">
+              <span class="self-order-field-label">Pilih jam pengambilan</span>
+              <input id="soTakeawayPickupTime" type="time" value="${soTakeawayEscape(pickupTime)}" required oninput="sessionStorage.setItem('so_takeaway_pickup_time', this.value)" />
+            </label>` : ""}
             <label class="wide"><span class="self-order-field-label">Catatan</span><textarea id="selfOrderCheckoutNote" placeholder="Catatan pesanan (opsional)" rows="2" oninput="sessionStorage.setItem('self_order_checkout_note', this.value)">${soTakeawayEscape(note)}</textarea></label>
           </div>
         </section>
@@ -728,6 +749,13 @@
       document.getElementById("soTakeawayCustomerPhone")?.focus();
       return;
     }
+    const pickupTime = sessionStorage.getItem("so_takeaway_pickup_time") ?? "Secepatnya";
+    if (pickupTime !== "Secepatnya" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(pickupTime)) {
+      selfOrderSubmitError = "Pilih jam pengambilan yang valid.";
+      render();
+      document.getElementById("soTakeawayPickupTime")?.focus();
+      return;
+    }
     if (!canAttemptSupabaseSync()) {
       selfOrderSubmitError = "Self Order Takeaway membutuhkan koneksi internet. Periksa koneksi lalu coba lagi.";
       render();
@@ -760,6 +788,7 @@
         takeawayExpiresAt: "",
         customer,
         customerPhone,
+        pickupTime,
         serviceInfo: takeawayNumber,
         note,
         status: "Pesanan Baru",
@@ -812,6 +841,7 @@
       saveSelfOrderCart();
       sessionStorage.removeItem("self_order_customer");
       sessionStorage.removeItem("so_takeaway_customer_phone");
+      sessionStorage.removeItem("so_takeaway_pickup_time");
       sessionStorage.removeItem("self_order_checkout_note");
       soTakeawaySetActiveOrder(order);
       soTakeawayMarkSnapshot(order, checkoutTotal);
@@ -1177,6 +1207,7 @@
       isMode: soTakeawayIsMode,
       isOrder: soTakeawayIsOrder,
       processOrder: soTakeawayProcessOrder,
+      setPickupTiming: soTakeawaySetPickupTiming,
       canFinishAfterAcceptance: order => soTakeawayIsOrder(order) && !soTakeawayIsDelivery(order)
         && !soTakeawayIsExpired(order) && soTakeawayIsReleasedToKitchen(order),
       renderDetails: soTakeawayDetailHtml,
