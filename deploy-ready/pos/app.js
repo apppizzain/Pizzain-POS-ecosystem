@@ -13202,9 +13202,10 @@ async function submitOrder() {
     existingOrder.updatedAt = updateCreatedAt;
     existingOrder.paidAt = updateCreatedAt;
     if (additionalItems.length) {
-      existingOrder.status = "Pesanan Baru";
+      const cashierOrder = existingOrder.source === "Kasir";
+      existingOrder.status = cashierOrder ? "Sedang Disiapkan" : "Pesanan Baru";
       existingOrder.confirmedAt = null;
-      existingOrder.preparedAt = null;
+      existingOrder.preparedAt = cashierOrder ? updateCreatedAt : null;
       existingOrder.readyAt = null;
       existingOrder.completedAt = null;
       existingOrder.pendingPushEventType = "additional_order";
@@ -13243,6 +13244,7 @@ async function submitOrder() {
     render();
     return;
   }
+  const createdAt = new Date().toISOString();
   const order = {
     id: uid(),
     number: orderNumber(),
@@ -13251,7 +13253,7 @@ async function submitOrder() {
     customer: customerDisplayName(document.getElementById("customerName")?.value),
     serviceInfo: document.getElementById("serviceInfo")?.value || "-",
     note: document.getElementById("orderNote")?.value || "",
-    status: "Pesanan Baru",
+    status: "Sedang Disiapkan",
     paymentStatus: "Lunas",
     paymentMethod,
     receivedAmount: paymentPayload.receivedAmount,
@@ -13265,9 +13267,9 @@ async function submitOrder() {
     serviceFee: 0,
     deliveryFee: 0,
     grandTotal,
-    createdAt: new Date().toISOString(),
+    createdAt,
     confirmedAt: null,
-    preparedAt: null,
+    preparedAt: createdAt,
     readyAt: null,
     completedAt: null,
     cancelledAt: null,
@@ -13351,9 +13353,10 @@ async function saveOrderPayLater() {
     existingOrder.paymentMethod = "Bayar nanti";
     existingOrder.updatedAt = updateCreatedAt;
     if (additionalItems.length) {
-      existingOrder.status = "Pesanan Baru";
+      const cashierOrder = existingOrder.source === "Kasir";
+      existingOrder.status = cashierOrder ? "Sedang Disiapkan" : "Pesanan Baru";
       existingOrder.confirmedAt = null;
-      existingOrder.preparedAt = null;
+      existingOrder.preparedAt = cashierOrder ? updateCreatedAt : null;
       existingOrder.readyAt = null;
       existingOrder.completedAt = null;
       existingOrder.pendingPushEventType = "additional_order";
@@ -13387,6 +13390,7 @@ async function saveOrderPayLater() {
     render();
     return;
   }
+  const createdAt = new Date().toISOString();
   const order = {
     id: uid(),
     number: orderNumber(),
@@ -13395,7 +13399,7 @@ async function saveOrderPayLater() {
     customer: customerDisplayName(document.getElementById("customerName")?.value),
     serviceInfo: document.getElementById("serviceInfo")?.value || "-",
     note: document.getElementById("orderNote")?.value || "",
-    status: "Pesanan Baru",
+    status: "Sedang Disiapkan",
     paymentStatus: "Belum dibayar",
     paymentMethod: "Bayar nanti",
     receivedAmount: 0,
@@ -13408,9 +13412,9 @@ async function saveOrderPayLater() {
     serviceFee: 0,
     deliveryFee: 0,
     grandTotal,
-    createdAt: new Date().toISOString(),
+    createdAt,
     confirmedAt: null,
-    preparedAt: null,
+    preparedAt: createdAt,
     readyAt: null,
     completedAt: null,
     cancelledAt: null,
@@ -13853,7 +13857,8 @@ function nextKitchenAction(status) {
 }
 
 function orderWorkStatus(order) {
-  if (order.status === "Pesanan Baru" && window.SOTakeaway?.canFinishAfterAcceptance(order)) {
+  if (order.status === "Pesanan Baru"
+    && (order.source === "Kasir" || window.SOTakeaway?.canFinishAfterAcceptance(order))) {
     return "Sedang Disiapkan";
   }
   return order.status;
@@ -13864,7 +13869,8 @@ function orderWorkAction(order) {
   const status = orderWorkStatus(order);
   const label = status === "Pesanan Baru" ? "Proses Pesanan" : status === "Sedang Disiapkan" ? "Selesai" : "";
   if (!label) return "";
-  return `<button class="btn so-takeaway-process-btn" type="button" onclick="event.preventDefault(); event.stopPropagation(); advanceOrder(${escapeHtml(JSON.stringify(order.id))}, { fromOrders: true })">${label}</button>`;
+  const actionClass = status === "Sedang Disiapkan" ? "orders-finish-btn" : "so-takeaway-process-btn";
+  return `<button class="btn ${actionClass}" type="button" onclick="event.preventDefault(); event.stopPropagation(); advanceOrder(${escapeHtml(JSON.stringify(order.id))}, { fromOrders: true })">${label}</button>`;
 }
 
 function advanceOrder(id, { fromOrders = false } = {}) {
@@ -14552,7 +14558,7 @@ function setReceiptSettingsProfile(kind) {
 function orderCenterCard(order, options = {}) {
   const qty = (order.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
   const expanded = sessionStorage.getItem(`orders_expanded_${order.id}`) === "1";
-  const compactStatus = compactOrderStatus(order.status);
+  const compactStatus = compactOrderStatus(orderWorkStatus(order));
   const type = String(order.type || "-");
   const onlineTakeaway = ["PICKUP_PREORDER", "TAKEAWAY"].includes(String(order.customerOrderType || order.orderMode || order.customer_order_type || "").toUpperCase())
     || String(order.source || "").trim().toLowerCase().includes("self order")
@@ -14679,7 +14685,7 @@ function orderCenterCard(order, options = {}) {
       </div>`
     : "";
   return `
-    <article class="orders-card ${options.compactUnpaid ? "unpaid-detail-card" : ""} ${orderStatusClass(order.status)} ${expanded ? "is-expanded" : ""}" ${searchAttributes} ${options.returnToUnpaid ? `onclick="toggleOrderItems('${order.id}', true)"` : ""}>
+    <article class="orders-card ${options.compactUnpaid ? "unpaid-detail-card" : ""} ${orderStatusClass(orderWorkStatus(order))} ${expanded ? "is-expanded" : ""}" ${searchAttributes} ${options.returnToUnpaid ? `onclick="toggleOrderItems('${order.id}', true)"` : ""}>
       <div class="orders-card-head">
         <div>
           <div class="order-title-row orders-customer-heading">${heading}</div>

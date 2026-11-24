@@ -6960,3 +6960,16 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.orders-card .btn.orders-finish-btn {
+  background: #18744e;
+  border-color: #18744e;
+  color: #fff;
+}
+
+.orders-card .btn.orders-finish-btn:hover,
+.orders-card .btn.orders-finish-btn:focus-visible {
+  background: #125a3c;
+  border-color: #125a3c;
+  color: #fff;
+}
