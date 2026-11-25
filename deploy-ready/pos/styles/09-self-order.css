@@ -757,7 +757,7 @@
 
 .self-order-detail {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -784,6 +784,10 @@
 
 .self-order-detail-panel {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr);
+  overflow-wrap: anywhere;
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -810,6 +814,7 @@
 .self-order-option-group {
   display: grid;
   gap: 5px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .self-order-option-group + .self-order-option-group,
@@ -853,6 +858,7 @@
 }
 
 .self-order-addon b {
+  min-width: 0;
   overflow: hidden;
   color: #191c20;
   font-size: 13px;
@@ -3036,7 +3042,7 @@
   }
 
   .self-order-detail {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
   }
 
