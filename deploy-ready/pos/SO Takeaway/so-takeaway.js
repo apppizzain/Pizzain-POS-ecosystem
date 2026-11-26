@@ -540,10 +540,8 @@
     // Courier settlement with the outlet does not confirm the customer's COD payment.
     const payment = soTakeawayIsPaid(order) && !(delivery && order.paymentProvider === "courier_cash") ? "Lunas" : "Belum Lunas";
     const store = state.settings?.selfOrderAppName || state.settings?.receiptStoreName || "Pizzain";
-    const logo = productPhotoSource(state.settings?.receiptLogoDataUrl)
-      || productPhotoSource(state.settings?.selfOrderProfileImageDataUrl);
-    const logoImage = mediaImageTag(logo, "Logo usaha", "fresin-receipt-logo", 320, "eager");
-    const emblem = `${logoImage}<span class="media-fallback-token"${logoImage ? " hidden" : ""}>${soTakeawayEscape(store.charAt(0))}</span>`;
+    const logo = String(state.settings?.selfOrderProfileImageDataUrl || state.settings?.receiptLogoDataUrl || "").trim();
+    const emblem = logo && (!archived || logo.startsWith("data:image/")) ? mediaImageTag(logo, "Logo usaha", "fresin-receipt-logo", 160, "eager") : soTakeawayEscape(store.charAt(0));
     const rawNumber = String(order.number || "-").trim();
     const number = /^ORD-\d{8}-[A-Z0-9]+$/i.test(rawNumber)
       ? (typeof displayOrderNumber === "function" ? displayOrderNumber(rawNumber) : rawNumber.replace(/^ORD-\d{8}-/i, "#"))
@@ -551,7 +549,7 @@
     const created = Date.parse(order.createdAt || "");
     return `<main class="self-order-main fresin-receipt-page">
       <article class="fresin-customer-receipt" aria-label="Rincian pesanan ${soTakeawayEscape(number)}">
-        <header class="fresin-receipt-brand"><span class="fresin-receipt-emblem${logoImage ? " has-logo" : ""}">${emblem}</span><strong>${soTakeawayEscape(store)}</strong></header>
+        <header class="fresin-receipt-brand"><span class="fresin-receipt-emblem">${emblem}</span><strong>${soTakeawayEscape(store)}</strong></header>
         <div class="fresin-receipt-meta"><strong>${soTakeawayEscape(number)}</strong><span>${soTakeawayEscape(delivery ? "Delivery" : order.type || "Takeaway")}</span>
           ${archived && order.finalStatus ? `<span>${soTakeawayEscape(order.finalStatus)}</span>` : ""}
           ${order.customer ? `<span>${soTakeawayEscape(order.customer)}</span>` : ""}
