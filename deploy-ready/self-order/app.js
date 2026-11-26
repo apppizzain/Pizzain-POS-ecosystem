@@ -12624,7 +12624,7 @@ function currentCorrectionOrder() {
 function canCorrectOrder(order) {
   if (!order || orderIsCancelled(order)) return false;
   if (order.paymentStatus === "Lunas") return false;
-  return ["Pesanan Baru", "Sedang Disiapkan"].includes(order.status);
+  return ["Pesanan Baru", "Sedang Disiapkan", "Selesai"].includes(order.status);
 }
 
 function orderCorrectionRecords(order) {
